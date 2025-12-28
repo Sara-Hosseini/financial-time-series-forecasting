@@ -210,3 +210,4 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 SETUP_GUIDE_LOCAL.md
+data/raw/*.csv
