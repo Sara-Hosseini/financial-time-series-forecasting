@@ -1,174 +1,212 @@
-# Stock Transformer Project — Local Setup Guide (Private)
+Stock Transformer Project — Local Setup Guide (Private)
+Objective
 
-## هدف
-ساخت پروژه در GitHub، اتصال به VS Code، ساخت محیط پایتون، نصب پکیج‌ها، تنظیم API Key و آماده‌سازی برای دانلود داده از Alpha Vantage.
+Create a GitHub-based project, connect it to VS Code, set up a Python environment, install required packages, configure API keys, and prepare the pipeline for downloading historical stock price data from Alpha Vantage and Yahoo Finance.
 
----
+1) Create a Repository on GitHub
 
-## 1) ساخت Repository در GitHub
-1. GitHub → علامت + → New repository
-2. Repository name: stock-transformer-project
-3. Add README ✅
-4. License: MIT (اختیاری ولی حرفه‌ای)
-5. Create repository
+GitHub → “+” → New repository
 
----
+Repository name: stock-transformer-project
 
-## 2) ساخت ساختار پوشه‌ها روی GitHub (با .gitkeep)
-چون GitHub پوشه خالی را نگه نمی‌دارد:
-- Add file → Create new file → data/raw/.gitkeep → Commit
-- Add file → Create new file → data/processed/.gitkeep → Commit
-- Add file → Create new file → notebooks/.gitkeep → Commit
+Add README ✅
 
----
+License: MIT (optional but professional)
 
-## 3) تنظیم .gitignore
-هدف: جلوگیری از آپلود موارد حساس/سنگین
-موارد مهم:
-- .env
-- .venv/
-- __pycache__/
-- *.pyc
-- .ipynb_checkpoints/
-- data/raw/*.csv (اختیاری)
+Create repository
 
----
+2) Create Folder Structure on GitHub (Using .gitkeep)
 
-## 4) نصب Git روی ویندوز
-در PowerShell:
+Since GitHub does not track empty folders:
+
+Add file → Create new file → data/raw/.gitkeep → Commit
+
+Add file → Create new file → data/processed/.gitkeep → Commit
+
+Add file → Create new file → notebooks/.gitkeep → Commit
+
+3) Configure .gitignore
+
+Purpose: prevent sensitive or heavy files from being pushed to GitHub.
+
+Important entries:
+
+.env
+
+.venv/
+
+__pycache__/
+
+*.pyc
+
+.ipynb_checkpoints/
+
+data/raw/*.csv (optional)
+
+4) Install Git on Windows
+
+In PowerShell:
+
 git --version
-اگر خطا داد:
-- Git for Windows نصب کن
-دوباره:
+
+
+If Git is not installed:
+
+Install Git for Windows
+
+Run again:
+
 git --version
-باید نسخه نشان دهد.
 
----
 
-## 5) باز کردن پروژه در VS Code
-1. VS Code → File → Open Folder
-2. مسیر پروژه: D:\lessons\season 4\code\stock-transformer-project
+A version number should be displayed.
 
----
+5) Open the Project in VS Code
 
-## 6) ساخت محیط مجازی (venv) و نصب پکیج‌ها
-### ساخت venv
+VS Code → File → Open Folder
+
+Project path:
+D:\lessons\season 4\code\stock-transformer-project
+
+6) Create a Virtual Environment (venv) and Install Packages
+Create venv
 python -m venv .venv
 
-### فعال‌سازی venv
+Activate venv
 .\.venv\Scripts\Activate.ps1
 
-اگر خطای execution policy داد:
+
+If an execution policy error occurs:
+
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 
-بعد دوباره Activate.
 
-### آپدیت pip و نصب requirements
+Then activate again.
+
+Upgrade pip and install dependencies
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 
----
+7) Select Python Interpreter in VS Code
 
-## 7) انتخاب Interpreter در VS Code
-1. Ctrl + Shift + P
-2. Python: Select Interpreter
-3. گزینه‌ای که شامل .venv باشد:
+Ctrl + Shift + P
+
+Python: Select Interpreter
+
+Choose the interpreter inside .venv:
+
 ...\stock-transformer-project\.venv\Scripts\python.exe
 
-تست:
+
+Verification:
+
 python -c "import sys; print(sys.executable)"
-باید مسیر .venv را بدهد.
 
----
 
-## 8) ساخت فایل .env و تنظیم Alpha Vantage API Key
-در ریشه پروژه فایل بساز:
-.env
+The output should point to .venv.
 
-داخلش فقط یک خط:
+8) Create .env File and Configure Alpha Vantage API Key
+
+Create a file named .env in the project root.
+
+Content (single line only):
+
 ALPHAVANTAGE_API_KEY=YOUR_REAL_KEY
 
-نکته: هیچ دستور دیگری داخل .env نوشته نمی‌شود.
 
-نصب dotenv:
+Note: No other commands should be written inside .env.
+
+Install dotenv:
+
 pip install python-dotenv
 
-تست:
+
+Test:
+
 python -c "from dotenv import load_dotenv; import os; load_dotenv(); print('OK' if os.getenv('ALPHAVANTAGE_API_KEY') else 'MISSING')"
 
----
+9) Create src Folder and Code Files
 
-## 9) ساخت src و فایل‌های کد
-ساختار درست:
-src/  (folder)
+Correct structure:
+
+src/
   data_collection.py
 
-نکته رایج: اشتباه ساختن فایل src به جای پوشه src
 
----
+Common mistake: creating a file named src instead of a folder.
 
-## 10) نکته امنیتی
-- .env نباید روی GitHub برود (در .gitignore باشد)
-- .venv نباید روی GitHub برود
+10) Security Notes
 
----
+.env must not be pushed to GitHub (included in .gitignore)
 
-## وضعیت فعلی چک‌لیست
-- Repo ساخته شد ✅
-- VS Code پروژه را باز کرد ✅
-- Git نصب شد ✅
-- .venv ساخته و فعال شد ✅
-- packages نصب شدند ✅
-- .env و API Key آماده شد ✅
-- python-dotenv نصب شد ✅
-- Interpreter روی .venv تنظیم شد ✅
-11) نوشتن اسکریپت دریافت داده از Alpha Vantage
+.venv must not be pushed to GitHub
 
-فایل زیر را داخل مسیر src/data_collection.py ساختیم.
+Current Checklist Status
 
-هدف این فایل
+Repository created ✅
 
-اتصال به API آلفا وینتیج
+Project opened in VS Code ✅
 
-دریافت داده قیمت روزانه سهام
+Git installed ✅
 
-تبدیل پاسخ JSON به DataFrame
+.venv created and activated ✅
 
-ذخیره داده خام در data/raw/
+Packages installed ✅
 
-منطق کلی کد
+.env and API key configured ✅
 
-خواندن API Key از .env
+python-dotenv installed ✅
 
-ارسال درخواست HTTP به Alpha Vantage
+Interpreter set to .venv ✅
 
-بررسی خطاها (rate limit / اطلاعات اشتراک)
+11) Writing the Alpha Vantage Data Collection Script
 
-تمیزسازی داده
+File created:
 
-ذخیره CSV
+src/data_collection.py
 
-12) اجرای اسکریپت و دانلود داده
+Purpose of this script
 
-در ترمینال (با فعال بودن .venv) اجرا شد:
+Connect to Alpha Vantage API
+
+Download daily stock price data
+
+Convert JSON response into a Pandas DataFrame
+
+Save raw data to data/raw/
+
+Core logic
+
+Load API key from .env
+
+Send HTTP request to Alpha Vantage
+
+Handle API errors (rate limit / subscription info)
+
+Clean and format data
+
+Save data as CSV
+
+12) Run the Script and Download Data
+
+Command (with .venv activated):
 
 python src/data_collection.py
 
+Successful output
 
-خروجی موفق:
-
-فایل ساخته شد:
+Generated file:
 
 data/raw/AAPL_daily_compact.csv
 
 
-پیام ترمینال:
+Terminal output:
 
 Saved: data\raw\AAPL_daily_compact.csv
 Shape: (100, 5)
 
 
-ستون‌ها:
+Columns:
 
 Open
 
@@ -180,155 +218,187 @@ Close
 
 Volume
 
-نکته مهم:
+Important note
 
-چون از پلن رایگان Alpha Vantage استفاده می‌شود:
+Using Alpha Vantage free tier:
 
-فقط 100 روز اخیر
+Only last 100 trading days available
 
 outputsize=compact
 
-endpoint: TIME_SERIES_DAILY
+Endpoint: TIME_SERIES_DAILY
 
-13) ثبت تغییرات در GitHub (ساعت کاری)
+13) Commit Changes to GitHub (Work Hours Tracking)
 
-بعد از اجرای موفق کد:
+After successful execution:
 
 git status
 git add src/data_collection.py .gitignore
 git commit -m "Fix Alpha Vantage free-tier usage and improve data collection output"
 git push
 
+Result
 
-نتیجه:
+Changes saved on GitHub
 
-تغییرات در GitHub ثبت شد
+Commit includes timestamp, author, and description
 
-commit دارای:
+✅ This commit is considered valid evidence of work hours
 
-زمان
+14) Start EDA in Jupyter Notebook
 
-توضیح
-
-نام نویسنده
-
-✅ این commit به‌عنوان نشانه‌ی ساعت کاری معتبر حساب می‌شود.
-
-14) شروع EDA در Jupyter Notebook
-
-فایل ساخته شد:
+Notebook created:
 
 notebooks/02_eda.ipynb
 
-کارهای انجام‌شده در EDA
+EDA steps performed
 
-بارگذاری داده خام CSV
+Load raw CSV data
 
-تبدیل ستون تاریخ به DateTime
+Convert date column to DateTime
 
-تنظیم Date به‌عنوان index
+Set Date as index
 
-بررسی اولیه داده
+Perform initial data inspection
 
-کد بارگذاری:
-
+Data loading code
 df = pd.read_csv("../data/raw/AAPL_daily_compact.csv",
                  parse_dates=["Unnamed: 0"])
 df = df.rename(columns={"Unnamed: 0": "Date"})
 df = df.set_index("Date")
 
-15) Feature Engineering پایه (مهم برای Transformer)
-15.1 محاسبه بازده روزانه
+15) Basic Feature Engineering (Important for Transformers)
+15.1 Daily Returns
 df["Return"] = df["Close"].pct_change()
 
 
-معنی:
+Meaning:
 
-درصد تغییر قیمت امروز نسبت به دیروز
+Percentage change of today’s price compared to yesterday
 
-یکی از مهم‌ترین ویژگی‌ها در مدل‌های مالی
+One of the most important features in financial modeling
 
-15.2 Rolling Window (پایه‌ی LSTM و Transformer)
+15.2 Rolling Window (Foundation for LSTM & Transformer)
 df["MA_5"] = df["Close"].rolling(5).mean()
 
 
-معنی:
+Meaning:
 
-میانگین قیمت ۵ روز اخیر
+5-day moving average
 
-مدل یاد می‌گیرد «پنجره زمانی» را ببیند
+Enables the model to learn temporal windows
 
-15.3 Resampling (تغییر فرکانس زمانی)
+15.3 Resampling (Change Time Frequency)
 df.resample("W").mean()
 
 
-معنی:
+Meaning:
 
-تبدیل داده روزانه به هفتگی
+Convert daily data to weekly
 
-کاهش نویز
+Reduce noise
 
-مناسب برای تحلیل‌های بلندمدت
+Useful for long-term analysis
 
-16) ذخیره نوت‌بوک و ثبت در GitHub
+16) Save Notebook and Commit to GitHub
 git add notebooks/02_eda.ipynb
 git commit -m "Add EDA notebook: quality checks, returns, rolling features, resampling"
 git push
 
+Result
 
-نتیجه:
+Notebook saved on GitHub
 
-نوت‌بوک کامل روی GitHub ذخیره شد
+A concrete step toward thesis-quality and resume-ready project
 
-یک قدم واقعی به سمت پروژه پایان‌نامه / رزومه
+17) Current Project Status
 
-17) وضعیت فعلی پروژه
+At this stage, the project includes:
 
-در این مرحله پروژه شامل:
+✅ Professional GitHub repository
 
-✅ ساخت Repo حرفه‌ای
+✅ Standard development environment
 
-✅ محیط توسعه استاندارد
+✅ Connection to real financial APIs
 
-✅ اتصال به API واقعی
+✅ Download of real market data
 
-✅ دریافت داده مالی واقعی
+✅ EDA and basic feature engineering
 
-✅ EDA و feature engineering پایه
+✅ Full version control history
 
-✅ ثبت تمام مراحل در GitHub
-افزودن منبع Yahoo Finance برای دیتای 10 ساله
-
-نصب پکیج:
-
+Adding Yahoo Finance as a 10-Year Historical Data Source
+Package installation
 pip install yfinance
 
-افزودن yfinance به requirements (ترجیحاً مینیمال)
+Update requirements
 
-افزودن تابع fetch_yahoo_daily(...) داخل src/data_collection.py
+Add yfinance to requirements.txt (preferably minimal)
 
-تعریف بازه زمانی 10 سال:
+Implementation
+
+Add fetch_yahoo_daily(...) function to src/data_collection.py
+
+Define 10-year time range:
 
 start_date = "2015-01-01"
+end_date   = "2026-01-01"   # end date is typically exclusive in yfinance
 
-end_date = "2026-01-01" (در yfinance تاریخ پایان معمولاً exclusive است)
-
-ذخیره خروجی:
-
+Output
 data/raw/AAPL_daily_10y_yahoo.csv
 
-تست:
-
+Test
 python src/data_collection.py
 
-انتظار: ~2700 ردیف و بازه 2015 تا امروز
 
-12) کامیت و پوش تغییرات
+Expected:
 
+~2700 rows
+
+Date range: 2015 → present
+
+18) Commit and Push Yahoo Finance Integration
 git status
-
 git add src/data_collection.py requirements.txt .gitignore
-
 git commit -m "Add Yahoo Finance 10-year data source and keep Alpha compact pipeline"
-
 git push
+
+Work Log
+
+2025-12-28
+
+Implemented data collection pipeline using Alpha Vantage (free-tier, compact)
+
+Added Yahoo Finance as a secondary source for 10-year historical price data
+
+Verified data integrity and date ranges
+
+Updated project setup documentation and requirements
+
+Approximate effort: 4–5 hours
+## Work Log – Time Series EDA (Yahoo Finance)
+
+### Date
+2026-01-16
+
+### Summary
+Performed a comprehensive exploratory data analysis (EDA) on the 10-year historical stock price dataset obtained from Yahoo Finance (AAPL). The focus was on ensuring data correctness, resolving multi-level CSV header issues, and preparing the dataset for time-series modeling.
+
+### Tasks Completed
+- Reloaded and validated the full 10-year Yahoo Finance dataset
+- Fixed CSV parsing issues related to multi-level headers and unnamed columns
+- Standardized the dataset schema to OHLCV format
+- Verified datetime indexing, data types, and absence of missing values
+- Conducted time-series EDA including:
+  - Price trend analysis and non-stationarity assessment
+  - Dual-axis visualization of price and trading volume
+  - Log return computation and analysis
+  - Rolling volatility analysis and identification of volatility clustering
+- Identified and resolved unintended dataframe slicing affecting visualization range
+- Structured EDA outputs to align with academic expectations for time-series analysis
+
+### Outcome
+The dataset is now fully validated and the EDA is complete and ready for academic submission. Results confirm non-stationarity in price levels, more stable behavior in log returns, and time-varying volatility, motivating the use of sequence-based models in subsequent stages.
+
+### Estimated Effort
+~4–6 hours
