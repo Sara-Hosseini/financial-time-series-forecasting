@@ -402,3 +402,25 @@ The dataset is now fully validated and the EDA is complete and ready for academi
 
 ### Estimated Effort
 ~4–6 hours
+## Worklog — 2026-01-19
+
+### Summary
+- Updated Yahoo price dataset using yfinance to ensure recency and enable alignment with news sentiment timestamps.
+- Built/validated an end-to-end analysis pipeline that merges numerical price features with daily aggregated news sentiment features.
+- Generated reproducible artifacts (processed CSV + figure) for reporting/presentation.
+
+### Changes Implemented
+- Added/updated script: `src/update_price_yahoo.py`
+  - Downloads full daily price history for AAPL via `yfinance`
+  - Saves output to `data/raw/AAPL_daily_yahoo_latest.csv`
+- Updated pipeline: `src/analysis_pipeline.py`
+  - Loads price CSV and computes features (`log_return`, `vol_20`)
+  - Fetches Alpha Vantage NEWS_SENTIMENT and converts JSON → DataFrame
+  - Aggregates sentiment daily (`sentiment_mean`, `news_count`, `relevance_mean`)
+  - Merges price + sentiment and saves:
+    - `data/processed/AAPL_price_sentiment_features.csv`
+    - `data/processed/AAPL_close_vs_sentiment.png`
+
+### Notes / Current Status
+- Data alignment issue identified: price data currently ends at 2026-01-16 while sentiment data spans 2026-01-17 to 2026-01-19.
+- Next action: align news dates to the nearest business/trading day (e.g., previous business day) or update price coverage when available.
