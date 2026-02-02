@@ -424,3 +424,163 @@ The dataset is now fully validated and the EDA is complete and ready for academi
 ### Notes / Current Status
 - Data alignment issue identified: price data currently ends at 2026-01-16 while sentiment data spans 2026-01-17 to 2026-01-19.
 - Next action: align news dates to the nearest business/trading day (e.g., previous business day) or update price coverage when available.
+
+9) News Sentiment Pipeline (Alpha Vantage – Free Tier)
+Objective
+
+Extend the project by integrating news sentiment data from Alpha Vantage and preparing daily aggregated sentiment features that can be merged with stock price time series for downstream modeling (LSTM / Transformer).
+
+19.1 Alpha Vantage NEWS_SENTIMENT Integration
+
+A new script was implemented to fetch and process news sentiment data:
+
+File:
+
+src/sentiment_collection.py
+
+
+API Endpoint:
+
+function=NEWS_SENTIMENT
+
+Source: Alpha Vantage (free tier)
+
+Tickers processed:
+
+AAPL
+
+MSFT
+
+GOOGL
+
+AMZN
+
+NVDA
+
+19.2 Rate Limit Handling (Free Tier Safe)
+
+Alpha Vantage free tier allows ~5 requests per minute.
+
+Implemented safeguards:
+
+13–15 seconds delay between requests
+
+Exponential backoff on rate-limit responses
+
+Automatic stop if daily quota is exceeded
+
+Local caching to avoid repeated API calls
+
+19.3 Sentiment Extraction Logic
+
+For each news item:
+
+Prefer ticker-specific sentiment (ticker_sentiment_score)
+
+Fallback to overall sentiment (overall_sentiment_score) if ticker-level data is missing
+
+Store the sentiment mode (ticker vs overall) for transparency
+
+Captured fields:
+
+time_published
+
+title
+
+source
+
+sentiment_score
+
+relevance_score
+
+mode
+
+19.4 Daily Aggregation (Model-Ready Features)
+
+Raw intraday news sentiment is converted into daily features:
+
+Aggregated per day:
+
+sentiment_mean
+
+sentiment_median
+
+n_news (news volume per day)
+
+This step aligns unstructured news data with daily stock prices.
+
+19.5 Output Files
+
+Generated files (cached locally):
+
+data/processed/
+├── AAPL_news_raw.csv
+├── AAPL_news_daily.csv
+├── MSFT_news_raw.csv
+├── MSFT_news_daily.csv
+├── GOOGL_news_raw.csv
+├── GOOGL_news_daily.csv
+├── AMZN_news_raw.csv
+├── AMZN_news_daily.csv
+├── NVDA_news_raw.csv
+├── NVDA_news_daily.csv
+└── summary.csv
+
+
+summary.csv contains:
+
+ticker
+
+news_count
+
+sentiment_mean
+
+relevance_mean
+
+19.6 Caching Strategy
+
+Before calling the API, the script checks:
+
+If *_news_raw.csv and *_news_daily.csv already exist
+→ data is loaded from disk
+→ API call is skipped
+
+This makes the pipeline:
+
+reproducible
+
+API-efficient
+
+safe for repeated experimentation
+
+19.7 Reproducibility Notes
+
+Requirements:
+
+requests
+pandas
+python-dotenv
+
+
+Environment variable required:
+
+ALPHAVANTAGE_API_KEY
+
+
+Execution (with .venv activated):
+
+python src/sentiment_collection.py
+
+19.8 Purpose in Thesis Context
+
+This pipeline enables:
+
+Empirical analysis of news sentiment impact on stock prices
+
+Construction of hybrid models combining:
+
+numerical price features
+
+sentiment-derived exogenous variables
+
+Direct alignment with academic literature on sentiment-driven market behavior
