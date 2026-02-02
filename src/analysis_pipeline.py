@@ -148,9 +148,4 @@ if __name__ == "__main__":
     print("Saved plot to:", plot_path)
     print(df_merged.tail(5))
 
-    # --- OPTIONAL: Run for 5 stocks ---
-    # tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA"]
-    # for t in tickers:
-    #     df = run_pipeline(t, f"data/raw/{t}_daily_10y_yahoo.csv", sentiment_limit=50)
-    #     p = save_price_vs_sentiment_plot(df, t)
-    #     print(t, "done ->", p)
+   

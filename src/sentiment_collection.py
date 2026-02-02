@@ -4,87 +4,104 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 
+BASE_URL = "https://www.alphavantage.co/query"
 
-def fetch_news_sentiment(
-    api_key: str,
-    tickers: str = "AAPL",
-    limit: int = 50,
-    *,
-    session: requests.Session | None = None,
-    max_retries: int = 5,
-    base_sleep: float = 1.2
-) -> dict:
-    url = "https://www.alphavantage.co/query"
+def fetch_news_sentiment(api_key: str, tickers: str, limit: int = 50, session=None,
+                         max_retries: int = 5, base_sleep: float = 2.0) -> dict:
     params = {
         "function": "NEWS_SENTIMENT",
         "tickers": tickers,
         "limit": limit,
-        "apikey": api_key
+        "apikey": api_key,
     }
 
     sess = session or requests.Session()
 
     for attempt in range(max_retries + 1):
-        r = sess.get(url, params=params, timeout=60)
+        r = sess.get(BASE_URL, params=params, timeout=30)
         r.raise_for_status()
         data = r.json()
 
-     
         if "Error Message" in data:
             raise ValueError(f"Alpha Vantage error: {data['Error Message']}")
 
-        #  Rate limit
+        # rate limit / info
         if "Note" in data or "Information" in data:
             if attempt == max_retries:
                 msg = data.get("Note") or data.get("Information")
-                raise RuntimeError(f"Alpha Vantage rate limit: {msg}")
+                raise RuntimeError(f"Alpha Vantage rate limit/info: {msg}")
 
             sleep_s = base_sleep * (2 ** attempt)
+            print(f"[rate-limit] sleeping {sleep_s:.1f}s then retry...")
             time.sleep(sleep_s)
             continue
 
-     
         return data
 
     raise RuntimeError("Unexpected retry failure")
 
 
-def news_json_to_df(data: dict, target_ticker: str = "AAPL") -> pd.DataFrame:
+def news_json_to_df(data: dict, target_ticker: str):
+    feed = data.get("feed") or []
+    target = target_ticker.upper()
     rows = []
-    feed = data.get("feed", [])
 
     for item in feed:
         t = item.get("time_published")
         title = item.get("title")
         source = item.get("source")
 
-        ticker_sentiments = item.get("ticker_sentiment", [])
         rec_for_ticker = None
-
-        for rec in ticker_sentiments:
-            if rec.get("ticker") == target_ticker:
+        for rec in (item.get("ticker_sentiment") or []):
+            if (rec.get("ticker") or "").upper() == target:
                 rec_for_ticker = rec
                 break
 
-        if rec_for_ticker is None:
+        if rec_for_ticker:
+            score = rec_for_ticker.get("ticker_sentiment_score")
+            rel = rec_for_ticker.get("relevance_score")
+            mode = "ticker"
+        else:
+            score = item.get("overall_sentiment_score")
+            rel = None
+            mode = "overall"
+
+        try:
+            score = float(score)
+        except Exception:
             continue
 
-        sentiment_score = rec_for_ticker.get("ticker_sentiment_score")
-        relevance_score = rec_for_ticker.get("relevance_score")
+        try:
+            rel = float(rel) if rel is not None else None
+        except Exception:
+            rel = None
 
         rows.append({
             "time_published": t,
             "title": title,
             "source": source,
-            "sentiment_score": float(sentiment_score) if sentiment_score is not None else None,
-            "relevance_score": float(relevance_score) if relevance_score is not None else None
+            "sentiment_score": score,
+            "relevance_score": rel,
+            "mode": mode,
         })
 
     df = pd.DataFrame(rows)
+    if df.empty:
+        daily = pd.DataFrame(columns=["date", "sentiment_mean", "sentiment_median", "n_news"])
+        return df, daily
+
     df["time_published"] = pd.to_datetime(df["time_published"], format="%Y%m%dT%H%M%S", errors="coerce")
-    df = df.dropna(subset=["time_published", "sentiment_score", "relevance_score"])
-    df = df.sort_values("time_published").reset_index(drop=True)
-    return df
+    df = df.dropna(subset=["time_published", "sentiment_score"]).sort_values("time_published")
+
+    df["date"] = df["time_published"].dt.date
+
+    daily = (df.groupby("date")
+               .agg(sentiment_mean=("sentiment_score", "mean"),
+                    sentiment_median=("sentiment_score", "median"),
+                    n_news=("sentiment_score", "size"))
+               .reset_index())
+
+    return df, daily
 
 
 def main():
@@ -96,21 +113,50 @@ def main():
     tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA"]
     summary_rows = []
 
+    out_dir = r"D:\lessons\season 4\code\stock-transformer-project\data\processed"
+    os.makedirs(out_dir, exist_ok=True)
+
     with requests.Session() as sess:
         for i, t in enumerate(tickers):
             print("\n" + "=" * 60)
             print(f"Processing ticker: {t}")
 
-       
-            if i > 0:
-                time.sleep(1.2)
+            # paths
+            news_raw_path = os.path.join(out_dir, f"{t}_news_raw.csv")
+            news_daily_path = os.path.join(out_dir, f"{t}_news_daily.csv")
 
-            data = fetch_news_sentiment(api_key=api_key, tickers=t, limit=50, session=sess)
-            df = news_json_to_df(data, target_ticker=t)
+            # ✅ CACHE: اگر فایل‌ها موجود باشند، API نزن
+            if os.path.exists(news_raw_path) and os.path.exists(news_daily_path):
+                print(f"[CACHE] Using existing files for {t}")
+                df = pd.read_csv(news_raw_path)
+                daily = pd.read_csv(news_daily_path)
 
+            else:
+                # pace requests فقط وقتی واقعاً API می‌زنیم
+                if i > 0:
+                    print("Sleeping 13s to avoid rate-limit ...")
+                    time.sleep(13)
+
+                try:
+                    data = fetch_news_sentiment(api_key=api_key, tickers=t, limit=50, session=sess)
+                except RuntimeError as e:
+                    # quota/day limit
+                    print(f"[STOP] {t}: {e}")
+                    break
+
+                df, daily = news_json_to_df(data, target_ticker=t)
+
+                # save cached files
+                df.to_csv(news_raw_path, index=False, encoding="utf-8-sig")
+                daily.to_csv(news_daily_path, index=False, encoding="utf-8-sig")
+
+                print("Saved raw news:", news_raw_path)
+                print("Saved daily news:", news_daily_path)
+
+            # summary stats
             n_news = len(df)
-            mean_sent = df["sentiment_score"].mean() if n_news > 0 else 0.0
-            mean_rel = df["relevance_score"].mean() if n_news > 0 else 0.0
+            mean_sent = df["sentiment_score"].mean() if n_news > 0 else float("nan")
+            mean_rel = df["relevance_score"].dropna().mean() if n_news > 0 else float("nan")
 
             summary_rows.append({
                 "ticker": t,
@@ -119,16 +165,16 @@ def main():
                 "relevance_mean": mean_rel
             })
 
-            if n_news > 0:
-                print(df[["time_published", "title", "sentiment_score", "relevance_score"]].head(3))
-            else:
-                print(f"No {t}-related sentiment records found for this ticker.")
+            # preview
+            cols = ["time_published", "title", "sentiment_score", "relevance_score", "mode"]
+            print(df[cols].head(3))
+            print("Daily head:")
+            print(daily.head(3))
 
     summary_df = pd.DataFrame(summary_rows).sort_values("news_count", ascending=False)
-    print("\n" + "=" * 60)
-    print("Multi-stock sentiment summary:")
+    print("\nMulti-stock sentiment summary:")
     print(summary_df)
+    summary_path = os.path.join(out_dir, "summary.csv")
+    summary_df.to_csv(summary_path, index=False, encoding="utf-8-sig")
+    print("Saved summary:", summary_path)
 
-
-if __name__ == "__main__":
-    main()
