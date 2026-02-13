@@ -110,7 +110,6 @@ def plot_actual_vs_predicted(
     plt.legend()
     plt.tight_layout()
 
-    # 4) ذخیره
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     plt.savefig(save_path, dpi=200)
     plt.close()
