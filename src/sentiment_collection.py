@@ -6,14 +6,30 @@ from dotenv import load_dotenv
 
 BASE_URL = "https://www.alphavantage.co/query"
 
-def fetch_news_sentiment(api_key: str, tickers: str, limit: int = 50, session=None,
-                         max_retries: int = 5, base_sleep: float = 2.0) -> dict:
+def fetch_news_sentiment(
+    api_key: str,
+    tickers: str,
+    limit: int = 200,
+    *,
+    time_from: str | None = None,
+    time_to: str | None = None,
+    sort: str | None = None,
+    session=None,
+    max_retries: int = 5,
+    base_sleep: float = 2.0,
+) -> dict:
     params = {
         "function": "NEWS_SENTIMENT",
         "tickers": tickers,
         "limit": limit,
         "apikey": api_key,
     }
+    if time_from:
+        params["time_from"] = time_from
+    if time_to:
+        params["time_to"] = time_to
+    if sort:
+        params["sort"] = sort
 
     sess = session or requests.Session()
 

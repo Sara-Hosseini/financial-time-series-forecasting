@@ -1,14 +1,16 @@
 # src/analysis_pipeline.py
 
 import os
+import time
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from dotenv import load_dotenv
 
 # Uses your existing sentiment_collection.py
 from src.sentiment_collection import fetch_news_sentiment, news_json_to_df
+
 
 def load_price_data(path: str) -> pd.DataFrame:
     """
@@ -30,7 +32,7 @@ def load_price_data(path: str) -> pd.DataFrame:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    df = df.dropna(subset=["Close"])
+    df = df.dropna(subset=["Open", "Close"])
 
     # Numerical features
     df["log_return"] = np.log(df["Close"]).diff()
@@ -39,46 +41,104 @@ def load_price_data(path: str) -> pd.DataFrame:
     return df
 
 
-def build_daily_sentiment(api_key: str, ticker: str, limit: int = 50) -> pd.DataFrame:
+def build_daily_sentiment_10days(
+    api_key: str,
+    ticker: str,
+    *,
+    start_yyyymmdd: str = "20251201",
+    end_yyyymmdd: str = "20251210",
+    limit_per_call: int = 200,
+    sleep_seconds: int = 13,
+) -> pd.DataFrame:
     """
-    Fetch Alpha Vantage news sentiment and aggregate daily:
-    - sentiment_mean
-    - news_count
-    """
-    data = fetch_news_sentiment(api_key=api_key, tickers=ticker, limit=limit)
-    df = news_json_to_df(data, target_ticker=ticker)
+    Fetch Alpha Vantage NEWS_SENTIMENT in smaller windows to overcome free API limitations.
+    Default: 10-day window split into 3 chunks:
+      2025-12-01..03, 04..06, 07..10
 
-    if df.empty:
+    Returns DataFrame with columns:
+      Date, sentiment_mean, news_count, relevance_mean
+    """
+
+    # Hard-coded 10-day split for reliability (you can generalize later)
+    windows = [
+        ("20251201T0000", "20251203T2359"),
+        ("20251204T0000", "20251206T2359"),
+        ("20251207T0000", "20251210T2359"),
+    ]
+
+    all_raw = []
+    all_daily = []
+
+    for i, (tf, tt) in enumerate(windows):
+        # Respect free-tier rate limits
+        if i > 0:
+            time.sleep(sleep_seconds)
+
+        data = fetch_news_sentiment(
+            api_key=api_key,
+            tickers=ticker,
+            limit=limit_per_call,
+            time_from=tf,
+            time_to=tt,
+            sort="EARLIEST",
+        )
+
+        df_raw, daily = news_json_to_df(data, target_ticker=ticker)
+
+        # Helpful debug (keep it; it shows coverage)
+        print(f"[{ticker}] window {tf} -> {tt} | raw_rows={len(df_raw)}")
+        if not df_raw.empty:
+            print("   raw min/max:", df_raw["time_published"].min(), "->", df_raw["time_published"].max())
+
+        if not df_raw.empty:
+            all_raw.append(df_raw)
+        if not daily.empty:
+            all_daily.append(daily)
+
+    if not all_raw:
         return pd.DataFrame(columns=["Date", "sentiment_mean", "news_count", "relevance_mean"])
 
-    df["Date"] = df["time_published"].dt.floor("D")
+    raw = pd.concat(all_raw, ignore_index=True)
+    daily = pd.concat(all_daily, ignore_index=True)
 
-    daily = (
-        df.groupby("Date")
+    # daily from sentiment_collection.py: date, sentiment_mean, sentiment_median, n_news
+    daily_agg = (
+        daily.groupby("date", as_index=False)
         .agg(
-            sentiment_mean=("sentiment_score", "mean"),
-            news_count=("sentiment_score", "size"),
-            relevance_mean=("relevance_score", "mean"),
+            sentiment_mean=("sentiment_mean", "mean"),
+            news_count=("n_news", "sum"),
         )
-        .reset_index()
+        .rename(columns={"date": "Date"})
     )
+    daily_agg["Date"] = pd.to_datetime(daily_agg["Date"])
 
-    return daily
+    # relevance_mean from raw
+    raw["Date"] = raw["time_published"].dt.floor("D")
+    rel = raw.groupby("Date", as_index=False).agg(relevance_mean=("relevance_score", "mean"))
+    rel["Date"] = pd.to_datetime(rel["Date"])
+
+    out = daily_agg.merge(rel, on="Date", how="left")
+    out["relevance_mean"] = out["relevance_mean"].fillna(0.0)
+
+    # Keep only requested 10 days (safety)
+    out = out.sort_values("Date")
+    out = out[(out["Date"] >= pd.to_datetime("2025-12-01")) & (out["Date"] <= pd.to_datetime("2025-12-10"))]
+
+    return out[["Date", "sentiment_mean", "news_count", "relevance_mean"]]
 
 
 def run_pipeline(
     ticker: str,
     price_csv_path: str,
     *,
-    sentiment_limit: int = 50,
-    out_dir: str = "data/processed"
+    out_dir: str = "data/processed",
 ) -> pd.DataFrame:
     """
     End-to-end pipeline:
     1) Load price data + compute numerical features
-    2) Fetch news sentiment + daily aggregate
+    2) Fetch news sentiment (10-day chunked)
     3) Merge into one unified dataset
-    4) Save CSV output
+    4) Save merged CSV output
     """
     load_dotenv()
     api_key = os.getenv("ALPHAVANTAGE_API_KEY")
@@ -86,7 +146,13 @@ def run_pipeline(
         raise RuntimeError("ALPHAVANTAGE_API_KEY is not found in .env")
 
     price = load_price_data(price_csv_path)
-    sentiment_daily = build_daily_sentiment(api_key, ticker, limit=sentiment_limit)
+
+    sentiment_daily = build_daily_sentiment_10days(
+        api_key,
+        ticker,
+        limit_per_call=200,
+        sleep_seconds=13,
+    )
 
     if not sentiment_daily.empty:
         sentiment_daily = sentiment_daily.set_index("Date")
@@ -108,44 +174,77 @@ def run_pipeline(
     return merged
 
 
-def save_price_vs_sentiment_plot(df: pd.DataFrame, ticker: str, out_dir: str = "data/processed") -> str:
+def build_sample_for_supervisor(
+    merged: pd.DataFrame,
+    *,
+    ticker: str,
+    start: str,
+    end: str,
+    out_dir: str = "data/processed",
+) -> pd.DataFrame:
     """
-    Save a dual-axis plot: Close vs sentiment_mean
+    Supervisor-ready sample (short time window):
+    Date, Open, Close, Return, Abs_Return, sentiment_mean, Sentiment_Lag1,
+    news_count, relevance_mean, Impact_score
     """
+    df = merged.copy().sort_index()
+    df = df.loc[pd.to_datetime(start): pd.to_datetime(end)].copy()
+
+    if "Open" not in df.columns or "Close" not in df.columns:
+        raise KeyError("Expected 'Open' and 'Close' columns in merged price data.")
+
+    df["Return"] = (df["Close"] - df["Open"]) / df["Open"]
+    df["Abs_Return"] = df["Return"].abs()
+
+    if "sentiment_mean" in df.columns:
+        df["Sentiment_Lag1"] = df["sentiment_mean"].shift(1)
+        df["Impact_score"] = df["sentiment_mean"] * df["Return"]
+    else:
+        df["Sentiment_Lag1"] = 0.0
+        df["Impact_score"] = 0.0
+
+    cols = [
+        "Open",
+        "Close",
+        "Return",
+        "Abs_Return",
+        "sentiment_mean",
+        "Sentiment_Lag1",
+        "news_count",
+        "relevance_mean",
+        "Impact_score",
+    ]
+    cols = [c for c in cols if c in df.columns]
+
+    out = df[cols].copy()
+    out.index.name = "Date"
+
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
-    fig, ax1 = plt.subplots(figsize=(12, 4))
+    sample_csv = out_path / f"{ticker}_SAMPLE_price_news_impact_{start}_to_{end}.csv"
+    out.to_csv(sample_csv, index=True)
 
-    ax1.plot(df.index, df["Close"])
-    ax1.set_ylabel("Close Price")
-
-    ax2 = ax1.twinx()
-    if "sentiment_mean" in df.columns:
-        ax2.plot(df.index, df["sentiment_mean"], alpha=0.4)
-    ax2.set_ylabel("Daily Sentiment (mean)")
-
-    plt.title(f"{ticker} Close Price vs Daily News Sentiment")
-    plt.tight_layout()
-
-    png_path = out_path / f"{ticker}_close_vs_sentiment.png"
-    plt.savefig(png_path, dpi=200)
-    plt.close(fig)
-
-    return str(png_path)
+    print("Saved supervisor sample to:", sample_csv)
+    return out
 
 
 if __name__ == "__main__":
-    # --- Single stock run (AAPL) ---
     ticker = "AAPL"
     price_csv = "data/raw/AAPL_daily_10y_yahoo.csv"
 
-    df_merged = run_pipeline(ticker, price_csv, sentiment_limit=50)
-    plot_path = save_price_vs_sentiment_plot(df_merged, ticker)
+    df_merged = run_pipeline(ticker, price_csv, out_dir="data/processed")
 
     print("Pipeline complete.")
     print("Saved merged CSV to:", f"data/processed/{ticker}_price_sentiment_features.csv")
-    print("Saved plot to:", plot_path)
     print(df_merged.tail(5))
 
-   
+    # ✅ 10-day sample
+    sample = build_sample_for_supervisor(
+        df_merged,
+        ticker=ticker,
+        start="2025-12-01",
+        end="2025-12-10",
+        out_dir="data/processed",
+    )
+    print(sample.head())

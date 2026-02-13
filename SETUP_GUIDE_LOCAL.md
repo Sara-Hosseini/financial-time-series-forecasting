@@ -584,3 +584,107 @@ numerical price features
 sentiment-derived exogenous variables
 
 Direct alignment with academic literature on sentiment-driven market behavior
+
+
+09.02.2026
+## LSTM Stock Price Prediction – Setup & Progress Log
+
+### Environment Setup
+- Python 3.10 (required for TensorFlow compatibility)
+- Virtual environment: `.venv_tf`
+- Key libraries:
+  - numpy
+  - pandas
+  - scikit-learn
+  - tensorflow (keras backend)
+
+### Data Preparation
+- Loaded 10 years of daily stock prices (Yahoo Finance CSV)
+- Cleaned and sorted data by date
+- Used only `Close` price
+- Applied MinMax scaling (fit on train only)
+- Created sliding window sequences (lookback = 20)
+- Time-series aware train/test split (80/20)
+
+### Model Architecture
+- Keras Sequential model
+- Input shape: (lookback, 1)
+- Single LSTM layer (50 units)
+- Dense output layer (1)
+- Optimizer: Adam
+- Loss: Mean Squared Error (MSE)
+
+### Training Strategy
+- Validation split from training data
+- EarlyStopping on validation loss
+- No shuffling (time series integrity preserved)
+
+### Current Status
+- Model trains successfully
+- Training and validation loss converge
+- Test MSE computed on scaled data
+- Next step: inverse scaling + RMSE/MAE in real price units
+
+12.02.2026
+Model Evaluation (Real-Scale Metrics)
+
+Performed inverse scaling on predictions
+
+Computed:
+
+Test RMSE (USD)
+
+Test MAE (USD)
+
+Verified consistency between model.evaluate() and manual MSE calculation
+
+Confirmed no data leakage in scaling or window creation
+
+Visualization
+
+Generated Actual vs Predicted (Test Set) plot
+
+Generated Training vs Validation Loss curve
+
+Saved plots to:
+
+data/processed/
+├── aapl_actual_vs_predicted.png
+└── aapl_train_val_loss.png
+
+
+These visual diagnostics confirm:
+
+Stable convergence
+
+No severe overfitting
+
+Reasonable short-term prediction alignment
+
+Engineering Improvements
+
+Modularized pipeline:
+
+load_prices()
+
+prepare_lstm_data()
+
+build_lstm_model()
+
+evaluate_model()
+
+plot_actual_vs_predicted()
+
+Added reproducible output saving
+
+Structured script for clean execution from CLI
+
+Next Planned Steps
+
+Add dropout / deeper LSTM architecture comparison
+
+Introduce additional features (returns, rolling volatility)
+
+Integrate daily sentiment features
+
+Prepare baseline comparison (e.g., naive forecast)
