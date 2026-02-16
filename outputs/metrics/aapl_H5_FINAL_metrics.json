@@ -1,0 +1,163 @@
+{
+  "ticker": "AAPL",
+  "horizon_days": 5,
+  "seed": 42,
+  "selection": {
+    "method": "walk_forward_cv_mean_rmse_close",
+    "cv_folds": 2,
+    "cv_mean_rmse": 1.8822526554532493,
+    "cv_std_rmse": 0.23160379357953198,
+    "cv_fold_rmses": [
+      2.1138564490327814,
+      1.6506488618737174
+    ]
+  },
+  "best_config": {
+    "window_size": 30,
+    "include_close_in_X": true,
+    "units1": 96,
+    "units2": 32,
+    "dropout": 0.1,
+    "lr": 0.0005,
+    "features": [
+      "Close",
+      "hl_range",
+      "ma_5",
+      "ma_10",
+      "p_ma5",
+      "p_ma10",
+      "log_ret_1",
+      "ret_5",
+      "ret_10",
+      "vol_10",
+      "vol_20",
+      "ema12",
+      "ema26",
+      "macd",
+      "macd_signal",
+      "rsi_14",
+      "atr_14",
+      "log_vol",
+      "vol_chg",
+      "vol_z20"
+    ]
+  },
+  "final_training": {
+    "best_val_rmse_close": 5.667435299573917,
+    "best_epoch": 1,
+    "epochs_ran": 9,
+    "history": {
+      "loss": [
+        0.3863275349140167,
+        0.37099844217300415,
+        0.3619470000267029,
+        0.3485560715198517,
+        0.3397974371910095,
+        0.3262581527233124,
+        0.31066465377807617,
+        0.2968159019947052,
+        0.2825942933559418
+      ],
+      "val_loss": [
+        0.3654150366783142,
+        0.3791969418525696,
+        0.3795537054538727,
+        0.40990281105041504,
+        0.4395763576030731,
+        0.5000978708267212,
+        0.49766841530799866,
+        0.558758020401001,
+        0.542240560054779
+      ],
+      "val_rmse_close": [
+        5.667435299573917,
+        5.823841900406147,
+        5.878089139398615,
+        6.050775759622397,
+        6.359190636195718,
+        6.793138151102176,
+        6.814993017352307,
+        7.233254691934602,
+        7.09328712018738
+      ]
+    }
+  },
+  "test": {
+    "rmse": 8.843373979143891,
+    "mae": 6.581102627212042,
+    "nrmse": 0.04085679033772508,
+    "mape": 3.074332895985525,
+    "directional_acc_pct": 50.18248175182482
+  },
+  "baselines_test": {
+    "naive": {
+      "rmse": 8.48233191751277,
+      "mae": 6.347536546470477
+    },
+    "drift": {
+      "rmse": 9.102937797994858,
+      "mae": 6.799975662616294,
+      "window": 30
+    },
+    "ma_5": {
+      "rmse": 9.11236990675302,
+      "mae": 7.031375907285371
+    },
+    "ma_10": {
+      "rmse": 9.735867092865927,
+      "mae": 7.661994307580655
+    }
+  },
+  "artifacts": {
+    "model": "outputs/models\\aapl_H5_FINAL_best.keras",
+    "weights_best": "outputs/models\\aapl_H5_win30_close1_u96-32_do0.1_lr0.0005.best.weights.h5",
+    "scaler_X": "outputs/scalers\\aapl_H5_FINAL_scaler_X.joblib",
+    "scaler_y": "outputs/scalers\\aapl_H5_FINAL_scaler_y.joblib",
+    "plot_actual_vs_predicted": "data/processed\\aapl_H5_FINAL_actual_vs_predicted.png",
+    "plot_history": "data/processed\\aapl_H5_FINAL_history.png",
+    "predictions_csv": "outputs/predictions\\aapl_H5_FINAL_predictions.csv"
+  },
+  "run_config": {
+    "ticker": "AAPL",
+    "csv_path": "data/raw/AAPL_daily_10y_yahoo.csv",
+    "date_format": "%Y-%m-%d",
+    "horizons": [
+      5,
+      10
+    ],
+    "train_ratio": 0.7,
+    "val_ratio": 0.1,
+    "cv_folds": 2,
+    "cv_min_train_size": 900,
+    "cv_val_size": 180,
+    "cv_step": 180,
+    "window_candidates": [
+      30,
+      45
+    ],
+    "include_close_candidates": [
+      true
+    ],
+    "units1_candidates": [
+      96
+    ],
+    "units2_candidates": [
+      32
+    ],
+    "dropout_candidates": [
+      0.1
+    ],
+    "lr_candidates": [
+      0.0005
+    ],
+    "epochs_cv": 25,
+    "epochs_final": 150,
+    "batch_size": 64,
+    "patience": 8,
+    "out_dir_metrics": "outputs/metrics",
+    "out_dir_models": "outputs/models",
+    "out_dir_scalers": "outputs/scalers",
+    "out_dir_plots": "data/processed",
+    "out_dir_preds": "outputs/predictions"
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "config": {
+    "ticker": "AAPL",
+    "csv_path": "data/raw/AAPL_daily_10y_yahoo.csv",
+    "date_format": "%Y-%m-%d",
+    "window_size": 20,
+    "horizons": [
+      5,
+      10
+    ],
+    "train_ratio": 0.7,
+    "val_ratio": 0.1,
+    "include_close_in_X": false,
+    "epochs": 80,
+    "batch_size": 32,
+    "patience": 8,
+    "out_dir_metrics": "outputs/metrics",
+    "out_dir_models": "outputs/models",
+    "out_dir_scalers": "outputs/scalers",
+    "out_dir_plots": "data/processed",
+    "horizon_days": 10,
+    "features": [
+      "hl_range",
+      "ma_5",
+      "ma_10",
+      "vol_10",
+      "log_vol"
+    ],
+    "train_samples": 1900,
+    "val_samples": 274,
+    "test_samples": 549
+  },
+  "test": {
+    "mse_scaled_h_logret": 0.018689437391800182,
+    "rmse_usd_close_h": 13.088871301403199,
+    "mae_usd_close_h": 10.39846765247856
+  },
+  "baselines": {
+    "naive": {
+      "rmse_usd_close_h": 11.159918973891562,
+      "mae_usd_close_h": 8.646429704620976
+    },
+    "ma_5": {
+      "rmse_usd_close_h": 11.39750222476574,
+      "mae_usd_close_h": 9.024775715256434
+    },
+    "ma_10": {
+      "rmse_usd_close_h": 11.829157437234016,
+      "mae_usd_close_h": 9.487465919258382
+    }
+  },
+  "artifacts": {
+    "plot_actual_vs_predicted": "data/processed\\aapl_H10_actual_vs_predicted_close.png",
+    "plot_train_val_loss": "data/processed\\aapl_H10_train_val_loss.png",
+    "model_best_ckpt": "outputs/models\\aapl_H10_best.keras",
+    "model_final": "outputs/models\\aapl_H10_final.keras",
+    "scaler_X": "outputs/scalers\\aapl_H10_scaler_X.joblib",
+    "scaler_y": "outputs/scalers\\aapl_H10_scaler_y.joblib"
+  },
+  "training": {
+    "epochs_ran": 47,
+    "batch_size": 32,
+    "seed": 42
+  }
+}

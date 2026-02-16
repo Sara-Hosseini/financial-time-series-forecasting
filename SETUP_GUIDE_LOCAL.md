@@ -688,3 +688,33 @@ Introduce additional features (returns, rolling volatility)
 Integrate daily sentiment features
 
 Prepare baseline comparison (e.g., naive forecast)
+
+
+
+### LSTM Regularization Experiment
+- Added Dropout (0.2) after LSTM layer
+- Reduced train–validation loss gap
+- Slight improvement in test RMSE stability
+
+
+## LSTM Price Forecasting (Price-only)
+
+This project implements a **thesis-grade LSTM pipeline** for stock price forecasting
+using OHLCV-derived features only.
+
+### Key Features
+- Multi-horizon forecasting (H=5, H=10)
+- Log-return target with price reconstruction
+- Walk-forward cross-validation
+- No data leakage (train-only scaling)
+- Bridge sequences for Val/Test
+- Early stopping on business metric (RMSE in price space)
+
+### Results
+| Horizon | Test RMSE | MAPE | Directional Acc |
+|--------|----------|------|-----------------|
+| 5 days | ~8.8 USD | ~3%  | ~50% |
+| 10 days| ~12.7 USD| ~4.5%| ~47% |
+
+### Example Outputs
+![H=5 Prediction](data/processed/aapl_H5_FINAL_actual_vs_predicted.png)

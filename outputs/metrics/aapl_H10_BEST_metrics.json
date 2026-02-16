@@ -1,0 +1,103 @@
+{
+  "ticker": "AAPL",
+  "horizon_days": 10,
+  "seed": 42,
+  "best_config": {
+    "window_size": 30,
+    "include_close_in_X": true,
+    "feature_count": 20,
+    "features": [
+      "Close",
+      "hl_range",
+      "ma_5",
+      "ma_10",
+      "p_ma5",
+      "p_ma10",
+      "log_ret_1",
+      "ret_5",
+      "ret_10",
+      "vol_10",
+      "vol_20",
+      "ema12",
+      "ema26",
+      "macd",
+      "macd_signal",
+      "rsi_14",
+      "atr_14",
+      "log_vol",
+      "vol_chg",
+      "vol_z20"
+    ],
+    "selection_metric": "VAL_RMSE_Close_t_plus_H",
+    "val_rmse_close": 7.708265971471412,
+    "splits": {
+      "train_ratio": 0.7,
+      "val_ratio": 0.1
+    },
+    "training": {
+      "epochs": 120,
+      "batch_size": 32,
+      "patience": 10
+    }
+  },
+  "test": {
+    "rmse_usd_close_h": 11.796941294569939,
+    "mae_usd_close_h": 9.19143229721039
+  },
+  "baselines_test": {
+    "naive": {
+      "rmse": 11.178540008490273,
+      "mae": 8.668610428107508
+    },
+    "drift_window": {
+      "rmse": 12.792210888811926,
+      "mae": 9.975945446718647,
+      "window_for_drift": 30
+    },
+    "ma_5": {
+      "rmse": 11.417710299528455,
+      "mae": 9.050760267072885
+    },
+    "ma_10": {
+      "rmse": 11.850280850359644,
+      "mae": 9.516944765303647
+    }
+  },
+  "artifacts": {
+    "plot_actual_vs_predicted": "data/processed\\aapl_H10_BEST_actual_vs_predicted.png",
+    "plot_train_val_loss": "data/processed\\aapl_H10_BEST_train_val_loss.png",
+    "predictions_csv": "outputs/predictions\\aapl_H10_BEST_predictions.csv",
+    "model_best_ckpt": "outputs/models\\aapl_H10_win30_close1_best.keras",
+    "model_final": "outputs/models\\aapl_H10_BEST_final.keras",
+    "scaler_X": "outputs/scalers\\aapl_H10_BEST_scaler_X.joblib",
+    "scaler_y": "outputs/scalers\\aapl_H10_BEST_scaler_y.joblib"
+  },
+  "run_config": {
+    "ticker": "AAPL",
+    "csv_path": "data/raw/AAPL_daily_10y_yahoo.csv",
+    "date_format": "%Y-%m-%d",
+    "horizons": [
+      5,
+      10
+    ],
+    "train_ratio": 0.7,
+    "val_ratio": 0.1,
+    "epochs": 120,
+    "batch_size": 32,
+    "patience": 10,
+    "out_dir_metrics": "outputs/metrics",
+    "out_dir_models": "outputs/models",
+    "out_dir_scalers": "outputs/scalers",
+    "out_dir_plots": "data/processed",
+    "out_dir_preds": "outputs/predictions",
+    "window_candidates": [
+      20,
+      30,
+      40
+    ],
+    "include_close_candidates": [
+      false,
+      true
+    ]
+  }
+}
