@@ -1,13 +1,3 @@
-# src/lstm_price_model_final_optimized.py
-# LSTM-only (thesis-grade) | Price-only multi-horizon forecasting (FAST + correct bridge)
-# - Proper bridge sequences for Val/Test
-# - No leakage scaling (fit on train fold only)
-# - Walk-forward CV (fast) inside Train+Val
-# - EarlyStop/Selection on VAL_RMSE Close_{t+H}
-# - tf.data pipeline (cache/prefetch) + clear_session to avoid slowdown
-# - Optional mixed precision for GPU
-# - Smaller but strong search space (big speed gain)
-
 import os
 import json
 from dataclasses import dataclass, asdict
@@ -32,13 +22,13 @@ import matplotlib.pyplot as plt
 
 
 # ─────────────────────────────────────────────────────────────
-# Repro + (optional) mixed precision
+# Repro + (optional) mixed precision (GPU)
 # ─────────────────────────────────────────────────────────────
 SEED = 42
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
 
-# اگر GPU داری، این را True کن (روی NVIDIA خیلی سرعت می‌دهد)
+
 USE_MIXED_PRECISION = False
 if USE_MIXED_PRECISION:
     from tensorflow.keras import mixed_precision
@@ -60,13 +50,13 @@ class RunConfig:
     train_ratio: float = 0.70
     val_ratio: float = 0.10  # test is remaining 0.20
 
-    # Walk-forward CV inside Train+Val block (faster)
+    # Walk-forward CV inside Train+Val block
     cv_folds: int = 2
     cv_min_train_size: int = 900
     cv_val_size: int = 180
     cv_step: int = 180
 
-    # Smaller but strong search space (BIG speed gain)
+    # Search space (small but strong)
     window_candidates: Tuple[int, ...] = (30, 45)
     include_close_candidates: Tuple[bool, ...] = (True,)
 
@@ -76,9 +66,9 @@ class RunConfig:
     lr_candidates: Tuple[float, ...] = (5e-4,)
 
     # training
-    epochs_cv: int = 25       # just to rank configs
-    epochs_final: int = 150   # final training a bit longer
-    batch_size: int = 64      # اگر RAM/GPU کم داری بگذار 32
+    epochs_cv: int = 25
+    epochs_final: int = 150
+    batch_size: int = 64      
     patience: int = 8
 
     # outputs
@@ -214,6 +204,7 @@ def add_price_features(df: pd.DataFrame) -> pd.DataFrame:
 # 3) Target + feature matrix + bridge sequences
 # ─────────────────────────────────────────────────────────────
 def make_horizon_target(df_feat: pd.DataFrame, horizon: int) -> np.ndarray:
+    # y_t = log(C_{t+H} / C_t)
     y = np.log(df_feat["Close"].shift(-horizon) / (df_feat["Close"] + 1e-12))
     return y.to_numpy().reshape(-1, 1)
 
@@ -232,6 +223,10 @@ def build_feature_matrix(df_feat: pd.DataFrame, include_close_in_X: bool):
 
 
 def make_seq_with_context(X_all: np.ndarray, y_all_1d: np.ndarray, start: int, end: int, window: int):
+    """
+    Build sequences for targets t in [start, end).
+    Each t uses X_all[t-window : t]  (bridge-correct)
+    """
     Xs, ys = [], []
     for t in range(start, end):
         if t - window < 0:
@@ -242,7 +237,7 @@ def make_seq_with_context(X_all: np.ndarray, y_all_1d: np.ndarray, start: int, e
 
 
 def split_final_holdout(df_feat: pd.DataFrame, horizon: int, train_ratio: float, val_ratio: float):
-    valid_len = len(df_feat) - horizon
+    valid_len = len(df_feat) - horizon  # where y exists
     n = valid_len
     train_end = int(n * train_ratio)
     val_end = int(n * (train_ratio + val_ratio))
@@ -250,7 +245,7 @@ def split_final_holdout(df_feat: pd.DataFrame, horizon: int, train_ratio: float,
 
 
 # ─────────────────────────────────────────────────────────────
-# 4) Model
+# 4) Model + tf.data
 # ─────────────────────────────────────────────────────────────
 def build_lstm_model(look_back: int, n_features: int, units1: int, units2: int, dropout: float, lr: float) -> tf.keras.Model:
     loss = tf.keras.losses.Huber(delta=1.0)
@@ -263,61 +258,24 @@ def build_lstm_model(look_back: int, n_features: int, units1: int, units2: int, 
         LSTM(units2, return_sequences=False),
         Dropout(dropout),
         Dense(32, activation="relu"),
-        Dense(1, dtype="float32" if USE_MIXED_PRECISION else None),  # برای mixed precision
+        Dense(1, dtype="float32" if USE_MIXED_PRECISION else None),
     ])
     model.compile(optimizer=opt, loss=loss)
     return model
 
 
-def predict_close(model: tf.keras.Model, X_seq: np.ndarray, scaler_y: StandardScaler, close_t: np.ndarray) -> np.ndarray:
-    y_pred_scaled = model.predict(X_seq, verbose=0)
-    y_pred = scaler_y.inverse_transform(y_pred_scaled).flatten()
-    return close_t * np.exp(y_pred)
-
-
-<<<<<<< HEAD
-def plot_actual_vs_predicted(
-    model,
-    X_test: np.ndarray,
-    y_test: np.ndarray,
-    scaler: MinMaxScaler,
-    dates_test: pd.DatetimeIndex,
-    save_path: str = "data/processed/aapl_actual_vs_predicted.png",
-):
-    """
-    Plot actual vs predicted on test set (in real USD) and save as PNG.
-    """
-
-    
-    y_pred_scaled = model.predict(X_test, verbose=0)
-
-    
-    y_test_real = scaler.inverse_transform(y_test).flatten()
-    y_pred_real = scaler.inverse_transform(y_pred_scaled).flatten()
-
-    
-    plt.figure(figsize=(12, 5))
-    plt.plot(dates_test, y_test_real, label="Actual")
-    plt.plot(dates_test, y_pred_real, label="Predicted")
-    plt.title("Actual vs Predicted (Test Set)")
-    plt.xlabel("Date")
-    plt.ylabel("Close Price (USD)")
-    plt.legend()
-    plt.tight_layout()
-
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    plt.savefig(save_path, dpi=200)
-    plt.close()
-
-    return save_path
-=======
 def make_tf_dataset(X: np.ndarray, y: np.ndarray, batch_size: int, training: bool):
     ds = tf.data.Dataset.from_tensor_slices((X, y))
     if training:
         ds = ds.shuffle(min(len(X), 4096), seed=SEED, reshuffle_each_iteration=True)
     ds = ds.batch(batch_size).cache().prefetch(tf.data.AUTOTUNE)
     return ds
->>>>>>> 3b9ce98 (Add optimized LSTM pipeline + metrics and plots (AAPL H=5,10))
+
+
+def predict_close(model: tf.keras.Model, X_seq: np.ndarray, scaler_y: StandardScaler, close_t: np.ndarray) -> np.ndarray:
+    y_pred_scaled = model.predict(X_seq, verbose=0)
+    y_pred = scaler_y.inverse_transform(y_pred_scaled).flatten()
+    return close_t * np.exp(y_pred)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -413,7 +371,7 @@ def baseline_drift(df_feat: pd.DataFrame, dates_t: pd.DatetimeIndex, close_t: np
 
 
 # ─────────────────────────────────────────────────────────────
-# 7) Plots + Predictions
+# 7) Plots + Predictions (FINAL)
 # ─────────────────────────────────────────────────────────────
 def plot_actual_vs_predicted(dates_t, close_true, close_pred, horizon: int, save_path: str):
     dates_target = dates_t + pd.tseries.offsets.BDay(horizon)
@@ -530,7 +488,6 @@ def walk_forward_cv_score(
         )
         fold_rmses.append(res["best_val_rmse_close"])
 
-        # جلوگیری از کند شدن تجمعی
         tf.keras.backend.clear_session()
 
     if len(fold_rmses) == 0:
@@ -680,13 +637,14 @@ if __name__ == "__main__":
     df_feat = add_price_features(df)
 
     for H in cfg.horizons:
-        print(f"\n {cfg.ticker} | Horizon={H} ")
+        print(f"\n==================== {cfg.ticker} | Horizon={H} ====================")
 
         train_end, val_end, n_valid = split_final_holdout(df_feat, H, cfg.train_ratio, cfg.val_ratio)
-        train_val_end = val_end
+        train_val_end = val_end  # CV inside Train+Val
 
         best: Dict[str, Any] = {"cv_mean_rmse": float("inf")}
 
+        # 1) Choose hyperparams by walk-forward CV mean RMSE (Close)
         for win in cfg.window_candidates:
             for inc_close in cfg.include_close_candidates:
                 for u1 in cfg.units1_candidates:
@@ -709,7 +667,10 @@ if __name__ == "__main__":
                                     continue
 
                                 mean_rmse = cv["cv_mean_rmse"]
-                                print(f"H={H} win={win} close={inc_close} u=({u1},{u2}) do={do} lr={lr} -> CV_RMSE={mean_rmse:.4f} ±{cv['cv_std_rmse']:.4f}")
+                                print(
+                                    f"H={H} win={win} close={inc_close} u=({u1},{u2}) do={do} lr={lr} "
+                                    f"-> CV_RMSE={mean_rmse:.4f} ±{cv['cv_std_rmse']:.4f}"
+                                )
 
                                 if mean_rmse < best["cv_mean_rmse"]:
                                     best = {
@@ -729,6 +690,7 @@ if __name__ == "__main__":
             print(f"[ERROR] No valid CV configs found for H={H}.")
             continue
 
+        # 2) Final train on Train, select on Val, evaluate on Test
         final_res = fit_final_and_test(
             df_feat=df_feat,
             horizon=H,
@@ -774,7 +736,7 @@ if __name__ == "__main__":
         metrics_path = os.path.join(cfg.out_dir_metrics, f"{cfg.ticker.lower()}_H{H}_FINAL_metrics.json")
         save_json(metrics, metrics_path)
 
-        print("\n✅ FINAL BEST (CV-selected → Val-selected → Tested on holdout)")
+        print("\n FINAL BEST (CV-selected → Val-selected → Tested on holdout)")
         print(f"H={H} | win={best['win']} | close={best['include_close']} | u=({best['units1']},{best['units2']}) | do={best['dropout']} | lr={best['lr']}")
         print(f"CV mean RMSE: {best['cv_mean_rmse']:.4f} ± {best['cv_std_rmse']:.4f}")
         print(f"TEST RMSE/MAE: {final_res['test']['rmse']:.4f} / {final_res['test']['mae']:.4f}")
