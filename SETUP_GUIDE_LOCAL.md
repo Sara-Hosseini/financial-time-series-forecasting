@@ -718,3 +718,11 @@ using OHLCV-derived features only.
 
 ### Example Outputs
 ![H=5 Prediction](data/processed/aapl_H5_FINAL_actual_vs_predicted.png)
+
+
+## Final Model
+- Architecture: 2-layer LSTM (96 → 32) + Dropout
+- Target: log-return of Close_{t+H}
+- Selection: walk-forward CV (RMSE on reconstructed price)
+- Horizons: 5-day, 10-day
+- Outputs: metrics (JSON), plots (PNG)
