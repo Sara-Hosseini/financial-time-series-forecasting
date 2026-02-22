@@ -1,0 +1,118 @@
+{
+  "ticker": "AAPL",
+  "horizon_days": 10,
+  "window": 30,
+  "feature_cols": [
+    "log_ret_1",
+    "ret_5",
+    "ret_10",
+    "ma_ratio_5",
+    "ma_ratio_10",
+    "hl_range",
+    "vol_10",
+    "vol_20",
+    "rsi_14"
+  ],
+  "method": "walk_forward_expanding_window",
+  "folds": [
+    {
+      "test_year": 2021,
+      "best_epoch": 2,
+      "best_val_loss": 0.682276725769043,
+      "rmse": 6.383039665666182,
+      "mae": 5.115723144836554,
+      "mape": 3.6095722384459155,
+      "dir_acc": 60.71428571428571,
+      "n_test": 252
+    },
+    {
+      "test_year": 2022,
+      "best_epoch": 9,
+      "best_val_loss": 0.25112682580947876,
+      "rmse": 10.977714767501089,
+      "mae": 9.472553938144314,
+      "mape": 6.265444465402173,
+      "dir_acc": 36.65338645418327,
+      "n_test": 251
+    },
+    {
+      "test_year": 2023,
+      "best_epoch": 1,
+      "best_val_loss": 0.6610167026519775,
+      "rmse": 7.592832804061327,
+      "mae": 5.810913693678227,
+      "mape": 3.3813625191552896,
+      "dir_acc": 70.39999999999999,
+      "n_test": 250
+    },
+    {
+      "test_year": 2024,
+      "best_epoch": 1,
+      "best_val_loss": 0.24968236684799194,
+      "rmse": 9.672241257381348,
+      "mae": 7.7988420761494295,
+      "mape": 3.72292496123042,
+      "dir_acc": 55.952380952380956,
+      "n_test": 252
+    },
+    {
+      "test_year": 2025,
+      "best_epoch": 1,
+      "best_val_loss": 0.33301934599876404,
+      "rmse": 13.072753607861996,
+      "mae": 9.825345267197886,
+      "mape": 4.413354854771563,
+      "dir_acc": 60.352422907488986,
+      "n_test": 227
+    }
+  ],
+  "aggregate": {
+    "avg_rmse": 9.53971642049439,
+    "avg_mae": 7.604675624001283,
+    "avg_mape": 4.2785318078010715,
+    "avg_dir_acc": 56.814495205667775,
+    "n_folds": 5
+  },
+  "run_config": {
+    "ticker": "AAPL",
+    "csv_path": "data/raw/AAPL_daily_10y_yahoo.csv",
+    "date_format": "%Y-%m-%d",
+    "horizons": [
+      5,
+      10
+    ],
+    "test_years": [
+      2021,
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "val_ratio_of_train": 0.1,
+    "window": 30,
+    "min_train_rows": 500,
+    "units1": 64,
+    "units2": 32,
+    "dropout": 0.25,
+    "lr": 0.0005,
+    "epochs": 150,
+    "batch_size": 32,
+    "es_patience": 20,
+    "es_min_delta": 1e-05,
+    "lr_patience": 6,
+    "lr_factor": 0.5,
+    "lr_min": 1e-06,
+    "out_dir_models": "outputs/models",
+    "out_dir_scalers": "outputs/scalers",
+    "out_dir_metrics": "outputs/metrics",
+    "out_dir_plots": "outputs/plots",
+    "out_dir_preds": "outputs/predictions",
+    "save_model": false,
+    "save_scalers": false
+  },
+  "artifacts": {
+    "plot": "outputs/plots\\aapl_H10_wf_pred.png",
+    "fold_plot": "outputs/plots\\aapl_H10_wf_fold_metrics.png",
+    "preds_csv": "outputs/predictions\\aapl_H10_wf_predictions.csv"
+  }
+}

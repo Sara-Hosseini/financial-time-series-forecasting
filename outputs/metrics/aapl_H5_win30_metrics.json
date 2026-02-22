@@ -1,0 +1,61 @@
+{
+  "ticker": "AAPL",
+  "horizon_days": 5,
+  "window": 30,
+  "feature_cols": [
+    "log_ret_1",
+    "ret_5",
+    "ret_10",
+    "ma_ratio_5",
+    "ma_ratio_10",
+    "hl_range",
+    "vol_10",
+    "vol_20",
+    "rsi_14"
+  ],
+  "best_epoch": 1,
+  "test": {
+    "rmse": 8.505108108665215,
+    "mae": 6.340928388798525,
+    "mape": 2.972955209101132,
+    "dir_acc_pct": 55.432780847145494,
+    "n_samples": 543
+  },
+  "run_config": {
+    "ticker": "AAPL",
+    "csv_path": "data/raw/AAPL_daily_10y_yahoo.csv",
+    "date_format": "%Y-%m-%d",
+    "horizons": [
+      5,
+      10
+    ],
+    "train_ratio": 0.7,
+    "val_ratio": 0.1,
+    "window": 30,
+    "units1": 64,
+    "units2": 32,
+    "dropout": 0.2,
+    "lr": 0.0001,
+    "batch_size": 32,
+    "epochs": 200,
+    "es_patience": 25,
+    "es_min_delta": 1e-05,
+    "lr_patience": 8,
+    "lr_factor": 0.5,
+    "lr_min": 1e-06,
+    "out_dir_models": "outputs/models",
+    "out_dir_scalers": "outputs/scalers",
+    "out_dir_metrics": "outputs/metrics",
+    "out_dir_plots": "outputs/plots",
+    "out_dir_preds": "outputs/predictions",
+    "save_model": true,
+    "save_scalers": true
+  },
+  "artifacts": {
+    "plot": "outputs/plots\\aapl_H5_win30_pred.png",
+    "preds_csv": "outputs/predictions\\aapl_H5_win30_predictions.csv",
+    "model": "outputs/models\\aapl_H5_win30.keras",
+    "scaler_X": "outputs/scalers\\aapl_H5_win30_scaler_X.joblib",
+    "scaler_y": "outputs/scalers\\aapl_H5_win30_scaler_y.joblib"
+  }
+}

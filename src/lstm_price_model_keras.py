@@ -1,26 +1,3 @@
-# ============================================================
-# LSTM Price Forecasting — Walk-Forward (Expanding Window)
-# Target : y_t = log(C_{t+H} / C_t)
-# Inputs : price-derived features ONLY (NO raw Close in X)
-#
-# Core idea:
-#   Instead of one fixed train/val/test split (which fails when
-#   val regime differs from train), we use walk-forward:
-#   - Fold 1: train 2015-2020, test 2021
-#   - Fold 2: train 2015-2021, test 2022
-#   - Fold 3: train 2015-2022, test 2023
-#   - Fold 4: train 2015-2023, test 2024
-#   Each fold's last 10% of train data = validation.
-#   Final metrics = average over all folds.
-#
-# Leakage-safe guarantees:
-#   - Scaler fit only on each fold's train window
-#   - make_sequences returns explicit idx (no silent misalignment)
-#   - MA features as ratio to close (no raw price in X)
-#   - shuffle=False always
-#   - close_true from df_work (aligned with target index)
-#   - EarlyStopping with restore_best_weights
-# ============================================================
 
 import os
 import json
@@ -48,17 +25,9 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Input, LSTM, Dense, Dropout
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 
-# ─────────────────────────────────────────────
-# Reproducibility
-# ─────────────────────────────────────────────
 SEED = 42
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
-
-
-# ─────────────────────────────────────────────
-# Config
-# ─────────────────────────────────────────────
 @dataclass
 class RunConfig:
     ticker: str = "AAPL"
@@ -67,15 +36,12 @@ class RunConfig:
 
     horizons: Tuple[int, ...] = (5, 10)
 
-    # Walk-forward: each fold tests one full year
-    # Train starts from beginning of data (expanding window)
     test_years: Tuple[int, ...] = (2021, 2022, 2023, 2024, 2025)
-    val_ratio_of_train: float = 0.10   # last 10% of each fold's train = val
+    val_ratio_of_train: float = 0.10  
 
-    window: int = 30                   # lookback window (trading days)
-    min_train_rows: int = 500          # skip fold if not enough train data
+    window: int = 30                  
+    min_train_rows: int = 500         
 
-    # Model
     units1: int = 64
     units2: int = 32
     dropout: float = 0.25
@@ -100,10 +66,7 @@ class RunConfig:
     save_model: bool = False   # set True to save each fold's model
     save_scalers: bool = False
 
-
-# ─────────────────────────────────────────────
 # Helpers
-# ─────────────────────────────────────────────
 def ensure_dirs(*paths: str):
     for p in paths:
         os.makedirs(p, exist_ok=True)
@@ -114,10 +77,7 @@ def save_json(obj: dict, path: str):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, indent=2, default=str)
 
-
-# ─────────────────────────────────────────────
 # Metrics
-# ─────────────────────────────────────────────
 def rmse(a, b) -> float:
     return float(np.sqrt(mean_squared_error(a, b)))
 
@@ -141,9 +101,8 @@ def dir_acc(c_t, c_true, c_pred) -> float:
     return float(np.mean(actual[mask] == pred[mask]) * 100.0)
 
 
-# ─────────────────────────────────────────────
 # Data Loading
-# ─────────────────────────────────────────────
+
 def load_prices(csv_path: str, date_format: str = "%Y-%m-%d") -> pd.DataFrame:
     df = pd.read_csv(csv_path)
 
@@ -172,10 +131,7 @@ def load_prices(csv_path: str, date_format: str = "%Y-%m-%d") -> pd.DataFrame:
     keep = [c for c in ["Open", "High", "Low", "Close", "Volume"] if c in df.columns]
     return df[keep].dropna()
 
-
-# ─────────────────────────────────────────────
 # Feature Engineering
-# ─────────────────────────────────────────────
 FEATURE_COLS = [
     "log_ret_1", "ret_5", "ret_10",
     "ma_ratio_5", "ma_ratio_10",
@@ -208,16 +164,11 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     return out.dropna()
 
 
-# ─────────────────────────────────────────────
 # Target: log-return over H days
-# ─────────────────────────────────────────────
 def make_target(df: pd.DataFrame, H: int) -> pd.Series:
     return np.log(df["Close"].shift(-H) / (df["Close"] + 1e-12)).rename("target")
 
-
-# ─────────────────────────────────────────────
 # Sequence Builder — explicit index tracking
-# ─────────────────────────────────────────────
 def make_sequences(
     X_scaled: np.ndarray,
     y_1d: np.ndarray,
@@ -235,9 +186,7 @@ def make_sequences(
     return np.array(Xs), np.array(ys).reshape(-1, 1), np.array(idxs)
 
 
-# ─────────────────────────────────────────────
 # Model
-# ─────────────────────────────────────────────
 def build_model(window: int, n_features: int, cfg: RunConfig) -> tf.keras.Model:
     model = Sequential([
         Input(shape=(window, n_features)),
@@ -255,9 +204,7 @@ def build_model(window: int, n_features: int, cfg: RunConfig) -> tf.keras.Model:
     return model
 
 
-# ─────────────────────────────────────────────
 # Plot: all folds combined
-# ─────────────────────────────────────────────
 def save_combined_plot(ticker, all_dates, all_true, all_pred, H, save_path):
     all_dates = pd.DatetimeIndex(all_dates)
     pct_err   = (all_pred - all_true) / (all_true + 1e-12) * 100
@@ -322,10 +269,7 @@ def save_metrics_plot(fold_metrics: List[dict], H: int, save_path: str):
     plt.savefig(save_path, dpi=160)
     plt.close()
 
-
-# ─────────────────────────────────────────────
 # Main
-# ─────────────────────────────────────────────
 if __name__ == "__main__":
     cfg = RunConfig()
     ensure_dirs(
@@ -373,10 +317,10 @@ if __name__ == "__main__":
             test_idx  = np.where(test_mask)[0]
 
             if len(train_idx) < cfg.min_train_rows:
-                print(f"\n  [Fold {test_year}] ⚠️  Only {len(train_idx)} train rows — skipping.")
+                print(f"\n  [Fold {test_year}] Only {len(train_idx)} train rows — skipping.")
                 continue
             if len(test_idx) == 0:
-                print(f"\n  [Fold {test_year}] ⚠️  No test data — skipping.")
+                print(f"\n  [Fold {test_year}]  No test data — skipping.")
                 continue
 
             train_end_idx = int(train_idx[-1]) + 1  # exclusive end
@@ -403,7 +347,7 @@ if __name__ == "__main__":
                                                   cfg.window)
 
             if len(X_tr) == 0 or len(X_va) == 0 or len(X_te) == 0:
-                print(f"  [Fold {test_year}] ⚠️  Empty split after sequencing — skipping.")
+                print(f"  [Fold {test_year}]   Empty split after sequencing — skipping.")
                 continue
 
             # ── Price alignment (from df_work, leakage-safe)
@@ -421,7 +365,7 @@ if __name__ == "__main__":
                 idx_te     = idx_te[~nan_mask]
 
             if len(X_te) == 0:
-                print(f"  [Fold {test_year}] ⚠️  All test rows were NaN — skipping.")
+                print(f"  [Fold {test_year}]  All test rows were NaN — skipping.")
                 continue
 
             # ── Build & train (fresh model each fold)
@@ -519,13 +463,13 @@ if __name__ == "__main__":
         avg_mape = float(np.mean([m["mape"]    for m in fold_metrics]))
         avg_da   = float(np.mean([m["dir_acc"] for m in fold_metrics]))
 
-        print(f"\n  ══ Walk-Forward Summary  (H={H}) ═══════════════════")
+        print(f"\n  ══ Walk-Forward Summary  (H={H}) ___________________")
         print(f"  Avg RMSE        : {avg_rmse:.4f}")
         print(f"  Avg MAE         : {avg_mae:.4f}")
         print(f"  Avg MAPE        : {avg_mape:.2f}%")
         print(f"  Avg Dir Accuracy: {avg_da:.2f}%")
         print(f"  Folds completed : {len(fold_metrics)}")
-        print(f"  ═══════════════════════════════════════════════════")
+        print(f"  _________________________________")
 
         # ── Save outputs
         tag = f"{cfg.ticker.lower()}_H{H}_wf"
