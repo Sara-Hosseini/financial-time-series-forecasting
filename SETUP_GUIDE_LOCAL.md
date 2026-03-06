@@ -726,3 +726,13 @@ using OHLCV-derived features only.
 - Selection: walk-forward CV (RMSE on reconstructed price)
 - Horizons: 5-day, 10-day
 - Outputs: metrics (JSON), plots (PNG)
+
+## Current Results (AAPL)
+
+- Horizons: 5-day, 10-day
+- Model: LSTM (leakage-safe, no Close in X)
+- Evaluation: time-based split (70/10/20)
+
+See:
+- `data/processed/` for plots
+- `outputs/metrics/` for quantitative results
