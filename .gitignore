@@ -230,3 +230,8 @@ outputs/**/tmp_*.weights.h5
 # --- Keep plots + metrics ---
 !outputs/metrics/
 !data/processed/
+# sentiment intermediate files
+outputs/AAPL_news_raw.csv
+outputs/AAPL_news_daily.csv
+outputs/AAPL_news_scored.csv
+outputs/AAPL_price_sentiment_merged.csv

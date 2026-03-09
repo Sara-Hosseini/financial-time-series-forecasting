@@ -448,11 +448,34 @@ def run(cfg: QuantileConfig, force_train: bool = False):
     ensure_dirs(cfg.out_dir_models, cfg.out_dir_scalers,
                 cfg.out_dir_metrics, cfg.out_dir_plots, cfg.out_dir_preds)
 
-    # Step 1 — Update data
     # Step 1 — Update price data
     update_price_data(cfg)
 
-# Step 2 — Load merged price + sentiment features
+    # Step 1b — Update sentiment (collect + score + merge)
+    try:
+        from src.sentiment.collector import collect_and_label
+        from src.sentiment.sentiment_model import load_news, load_finbert_lora, score_news, build_daily_sentiment
+        from src.merge_sentiment_price import load_price_data, load_sentiment_data, merge_price_and_sentiment
+        import importlib, src.merge_sentiment_price as _msp
+
+        print("\n[1b/4] Updating sentiment data...")
+        collect_and_label()
+
+        df_news = load_news("data/processed/sentiment/news_raw.csv")
+        tokenizer, sent_model = load_finbert_lora()
+        df_scored = score_news(df_news, tokenizer, sent_model)
+        daily_df  = build_daily_sentiment(df_scored)
+        daily_df.to_csv("outputs/AAPL_news_daily.csv", index=False, encoding="utf-8-sig")
+
+        price_df = load_price_data(_msp.PRICE_CSV)
+        sent_df  = load_sentiment_data(_msp.SENTIMENT_CSV)
+        merged   = merge_price_and_sentiment(price_df, sent_df)
+        merged.to_csv(_msp.OUT_CSV, index=False, encoding="utf-8-sig")
+        print("  Sentiment updated.")
+    except Exception as e:
+        print(f"  Sentiment update skipped: {e}")
+
+    # Step 2 — Load merged price + sentiment features
     df_feat = load_merged_features(cfg)
     last_date  = df_feat.index[-1]
     last_close = df_feat["Close"].iloc[-1]

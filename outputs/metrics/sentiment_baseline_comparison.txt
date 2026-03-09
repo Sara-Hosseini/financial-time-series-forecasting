@@ -1,0 +1,46 @@
+
+=================================================================
+  SENTIMENT BASELINE COMPARISON SUMMARY
+=================================================================
+  Method                                  Acc      F1    Prec     Rec
+  -------------------------------------------------------------
+  Zero-shot                            0.5070  0.3140  0.3251  0.3054
+  Few-shot                             0.1936  0.1081  0.0651  0.3201
+  Fine-tuned LoRA                      0.8483  0.8013  0.8036  0.7992
+=================================================================
+
+  Fine-tuning improvement over zero-shot: +155.2% F1
+
+
+── Zero-shot ──
+              precision    recall  f1-score   support
+
+    negative       0.05      0.07      0.06        76
+     neutral       0.11      0.12      0.11       101
+    positive       0.82      0.73      0.77       324
+
+    accuracy                           0.51       501
+   macro avg       0.33      0.31      0.31       501
+weighted avg       0.56      0.51      0.53       501
+
+── Few-shot ──
+              precision    recall  f1-score   support
+
+    negative       0.00      0.00      0.00        76
+     neutral       0.20      0.96      0.32       101
+    positive       0.00      0.00      0.00       324
+
+    accuracy                           0.19       501
+   macro avg       0.07      0.32      0.11       501
+weighted avg       0.04      0.19      0.07       501
+
+── Fine-tuned LoRA ──
+              precision    recall  f1-score   support
+
+    negative       0.72      0.70      0.71        76
+     neutral       0.80      0.80      0.80       101
+    positive       0.89      0.90      0.90       324
+
+    accuracy                           0.85       501
+   macro avg       0.80      0.80      0.80       501
+weighted avg       0.85      0.85      0.85       501
