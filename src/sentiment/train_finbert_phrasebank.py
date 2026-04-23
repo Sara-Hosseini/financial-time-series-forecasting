@@ -228,12 +228,66 @@ def evaluate(model, loader, device) -> dict:
 # ============================================================
 # Main
 # ============================================================
+def ensure_dataset(csv_path: str) -> str:
+    """
+    اگه فایل CSV وجود نداشت، از HuggingFace datasets دانلود میکنه.
+    منبع اول: Twitter Financial News Sentiment (9543 نمونه)
+    منبع دوم: Financial PhraseBank (fallback)
+    """
+    if os.path.exists(csv_path):
+        print(f"Dataset found: {csv_path}")
+        return csv_path
+
+    print(f"Dataset not found at '{csv_path}'. Attempting auto-download from HuggingFace...")
+    os.makedirs(os.path.dirname(csv_path) if os.path.dirname(csv_path) else ".", exist_ok=True)
+
+    try:
+        from datasets import load_dataset as hf_load
+
+        # --- منبع اول: Twitter Financial News
+        try:
+            print("  Trying: zeroshot/twitter-financial-news-sentiment ...")
+            ds = hf_load("zeroshot/twitter-financial-news-sentiment", split="train")
+            df = ds.to_pandas()
+            df["label"] = df["label"].map({0: "negative", 1: "positive", 2: "neutral"})
+            df = df[["text", "label"]].dropna()
+            df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+            print(f"  Downloaded {len(df)} rows -> {csv_path}")
+            return csv_path
+        except Exception as e1:
+            print(f"  Twitter Financial News failed: {e1}")
+
+        # --- منبع دوم: Financial PhraseBank
+        print("  Trying: financial_phrasebank (sentences_allagree) ...")
+        ds = hf_load("financial_phrasebank", "sentences_allagree", trust_remote_code=True)
+        df = ds["train"].to_pandas()
+        df["label"] = df["label"].map({0: "negative", 1: "neutral", 2: "positive"})
+        df = df.rename(columns={"sentence": "text"})[["text", "label"]].dropna()
+        df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+        print(f"  Downloaded {len(df)} rows -> {csv_path}")
+        return csv_path
+
+    except ImportError:
+        raise RuntimeError(
+            "کتابخانه 'datasets' نصب نیست.\n"
+            "نصب کنید:  pip install datasets\n"
+            f"یا فایل CSV رو اینجا بذارید: {csv_path}\n"
+            "ستون‌های مورد نیاز: text, label  (label: positive/negative/neutral)"
+        )
+    except Exception as e:
+        raise RuntimeError(
+            f"دانلود خودکار شکست خورد: {e}\n"
+            f"لطفاً فایل CSV رو اینجا بذارید: {csv_path}"
+        )
+
+
 def main():
     set_seed()
     print(f"Device : {DEVICE}")
     print(f"LoRA   : r={LORA_R}, alpha={LORA_ALPHA}, targets={LORA_TARGETS}")
 
-    # ── Load data ──────────────────────────────────────────
+    # ── Load data (auto-download if not found) ─────────────
+    ensure_dataset(DATA_CSV)
     print(f"\nLoading dataset: {DATA_CSV}")
     df = load_dataset(DATA_CSV)
     df["label_id"] = df["label"].map(label2id)

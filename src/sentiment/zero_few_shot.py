@@ -293,8 +293,36 @@ def print_summary(results: dict) -> str:
 # ============================================================
 # Main
 # ============================================================
+def ensure_dataset(csv_path: str) -> str:
+    """دانلود خودکار دیتاست اگه فایل نباشه — مشابه train_finbert_phrasebank.py"""
+    if os.path.exists(csv_path):
+        return csv_path
+    print(f"Dataset not found at '{csv_path}'. Auto-downloading from HuggingFace...")
+    os.makedirs(os.path.dirname(csv_path) if os.path.dirname(csv_path) else ".", exist_ok=True)
+    try:
+        from datasets import load_dataset as hf_load
+        try:
+            ds  = hf_load("zeroshot/twitter-financial-news-sentiment", split="train")
+            df  = ds.to_pandas()
+            df["label"] = df["label"].map({0: "negative", 1: "positive", 2: "neutral"})
+        except Exception:
+            ds  = hf_load("financial_phrasebank", "sentences_allagree", trust_remote_code=True)
+            df  = ds["train"].to_pandas()
+            df["label"] = df["label"].map({0: "negative", 1: "neutral", 2: "positive"})
+            df  = df.rename(columns={"sentence": "text"})
+        df = df[["text", "label"]].dropna()
+        df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+        print(f"  Downloaded {len(df)} rows -> {csv_path}")
+        return csv_path
+    except ImportError:
+        raise RuntimeError("Run: pip install datasets")
+    except Exception as e:
+        raise RuntimeError(f"Auto-download failed: {e}\nPlace CSV manually at: {csv_path}")
+
+
 def main():
     print(f"Device: {DEVICE}")
+    ensure_dataset(DATA_CSV)
     print(f"Loading test data: {DATA_CSV} ({N_TEST_SAMPLES} samples)")
     test_df = load_test_data(DATA_CSV, N_TEST_SAMPLES)
     print(f"Test samples: {len(test_df)}")

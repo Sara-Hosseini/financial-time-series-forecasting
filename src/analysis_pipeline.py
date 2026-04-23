@@ -41,30 +41,60 @@ def load_price_data(path: str) -> pd.DataFrame:
     return df
 
 
+def _build_date_windows(start_yyyymmdd: str, end_yyyymmdd: str, chunk_days: int = 3):
+    """
+    تاریخ شروع و پایان رو به بازه‌های کوچک‌تر تقسیم میکنه
+    تا محدودیت free-tier Alpha Vantage رو دور بزنیم.
+    مثال: 10 روز با chunk_days=3  →  3 بازه (3+3+4)
+    """
+    from datetime import datetime, timedelta
+    fmt   = "%Y%m%d"
+    start = datetime.strptime(start_yyyymmdd, fmt)
+    end   = datetime.strptime(end_yyyymmdd,   fmt)
+
+    windows = []
+    current = start
+    while current <= end:
+        chunk_end = min(current + timedelta(days=chunk_days - 1), end)
+        windows.append((
+            current.strftime("%Y%m%dT0000"),
+            chunk_end.strftime("%Y%m%dT2359"),
+        ))
+        current = chunk_end + timedelta(days=1)
+    return windows
+
+
 def build_daily_sentiment_10days(
     api_key: str,
     ticker: str,
     *,
-    start_yyyymmdd: str = "20251201",
-    end_yyyymmdd: str = "20251210",
+    start_yyyymmdd: str | None = None,
+    end_yyyymmdd:   str | None = None,
     limit_per_call: int = 200,
     sleep_seconds: int = 13,
+    chunk_days: int = 3,
 ) -> pd.DataFrame:
     """
     Fetch Alpha Vantage NEWS_SENTIMENT in smaller windows to overcome free API limitations.
-    Default: 10-day window split into 3 chunks:
-      2025-12-01..03, 04..06, 07..10
+
+    اگه start/end داده نشه، به‌طور خودکار 10 روز اخیر (به‌جز امروز) رو میگیره.
 
     Returns DataFrame with columns:
       Date, sentiment_mean, news_count, relevance_mean
     """
+    from datetime import datetime, timedelta
 
-    # Hard-coded 10-day split for reliability (you can generalize later)
-    windows = [
-        ("20251201T0000", "20251203T2359"),
-        ("20251204T0000", "20251206T2359"),
-        ("20251207T0000", "20251210T2359"),
-    ]
+    # ── تاریخ‌های dynamic
+    if start_yyyymmdd is None or end_yyyymmdd is None:
+        today     = datetime.today()
+        end_dt    = today - timedelta(days=1)          # دیروز
+        start_dt  = end_dt - timedelta(days=9)         # 10 روز اخیر
+        start_yyyymmdd = start_dt.strftime("%Y%m%d")
+        end_yyyymmdd   = end_dt.strftime("%Y%m%d")
+
+    print(f"[{ticker}] Fetching sentiment: {start_yyyymmdd} → {end_yyyymmdd}")
+
+    windows = _build_date_windows(start_yyyymmdd, end_yyyymmdd, chunk_days)
 
     all_raw = []
     all_daily = []
@@ -120,9 +150,12 @@ def build_daily_sentiment_10days(
     out = daily_agg.merge(rel, on="Date", how="left")
     out["relevance_mean"] = out["relevance_mean"].fillna(0.0)
 
-    # Keep only requested 10 days (safety)
+    # فیلتر dynamic بر اساس start/end که به تابع پاس داده شده
     out = out.sort_values("Date")
-    out = out[(out["Date"] >= pd.to_datetime("2025-12-01")) & (out["Date"] <= pd.to_datetime("2025-12-10"))]
+    out = out[
+        (out["Date"] >= pd.to_datetime(start_yyyymmdd, format="%Y%m%d")) &
+        (out["Date"] <= pd.to_datetime(end_yyyymmdd,   format="%Y%m%d"))
+    ]
 
     return out[["Date", "sentiment_mean", "news_count", "relevance_mean"]]
 
@@ -239,12 +272,15 @@ if __name__ == "__main__":
     print("Saved merged CSV to:", f"data/processed/{ticker}_price_sentiment_features.csv")
     print(df_merged.tail(5))
 
-    # ✅ 10-day sample
+    # ✅ 10-day sample — تاریخ‌های dynamic (10 روز اخیر)
+    from datetime import datetime, timedelta
+    end_date   = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+    start_date = (datetime.today() - timedelta(days=10)).strftime("%Y-%m-%d")
     sample = build_sample_for_supervisor(
         df_merged,
         ticker=ticker,
-        start="2025-12-01",
-        end="2025-12-10",
+        start=start_date,
+        end=end_date,
         out_dir="data/processed",
     )
     print(sample.head())

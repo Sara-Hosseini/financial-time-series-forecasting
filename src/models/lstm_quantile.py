@@ -132,6 +132,60 @@ def load_merged_features(cfg: QuantileConfig) -> pd.DataFrame:
 
     df = df.dropna(subset=["Close"]).copy()
     return df
+
+
+def _load_features_with_fallback(cfg: QuantileConfig) -> pd.DataFrame:
+    """
+    سعی میکنه merged CSV (قیمت + سنتیمنت) رو لود کنه.
+    اگه فایل نبود یا خراب بود، فقط از داده قیمتی استفاده میکنه
+    و ستون‌های سنتیمنت رو با صفر پر میکنه.
+    """
+    # حالت ۱: merged CSV موجوده → همونو لود کن
+    if os.path.exists(cfg.merged_csv_path):
+        try:
+            df = load_merged_features(cfg)
+            n_sent = sum(1 for c in SENTIMENT_FEATURE_COLS if c in df.columns and df[c].any())
+            if n_sent > 0:
+                print(f"  Loaded merged features ({len(df)} rows, {n_sent} active sentiment cols)")
+            else:
+                print(f"  Loaded merged features ({len(df)} rows, sentiment cols all zero — no news data yet)")
+            return df
+        except Exception as e:
+            print(f"  Warning: merged CSV load failed ({e}). Falling back to price-only.")
+
+    # حالت ۲: fallback — فقط داده قیمتی
+    print(f"  Merged CSV not found at '{cfg.merged_csv_path}'.")
+    print("  Using price-only features. Sentiment columns will be zero.")
+    print("  To add sentiment: run the full pipeline (collector → sentiment_model → merge).")
+
+    if not os.path.exists(cfg.csv_path):
+        raise FileNotFoundError(
+            f"Neither merged CSV nor price CSV found.
+"
+            f"  merged : {cfg.merged_csv_path}
+"
+            f"  price  : {cfg.csv_path}
+"
+            "Run data_collection.py first."
+        )
+
+    df = load_prices(cfg.csv_path, cfg.date_format)
+    df = add_features(df)
+
+    # اضافه کردن ستون‌های سنتیمنت با مقدار صفر (neutral)
+    for col in SENTIMENT_FEATURE_COLS:
+        df[col] = 0.0
+
+    # ذخیره به عنوان merged CSV تا دفعه بعد نیازی به fallback نباشه
+    os.makedirs(os.path.dirname(cfg.merged_csv_path), exist_ok=True)
+    price_cols = ["Open", "High", "Low", "Close", "Volume"] + SENTIMENT_FEATURE_COLS
+    save_cols  = [c for c in price_cols if c in df.columns]
+    df[save_cols].to_csv(cfg.merged_csv_path)
+    print(f"  Saved price-only merged CSV -> {cfg.merged_csv_path}")
+
+    return df
+
+
 # ─────────────────────────────────────────────
 # Pinball Loss
 # ─────────────────────────────────────────────
@@ -220,11 +274,12 @@ def update_price_data(cfg: QuantileConfig) -> pd.DataFrame:
 # Step 2 — Check if model needs training
 # ─────────────────────────────────────────────
 def model_needs_training(cfg: QuantileConfig, H: int) -> bool:
-    model_path  = os.path.join(cfg.out_dir_models,  f"{cfg.ticker}_quantile_H{H}.keras")
-    scaler_path = os.path.join(cfg.out_dir_scalers, f"{cfg.ticker}_quantile_H{H}_scaler.joblib")
+    model_path    = os.path.join(cfg.out_dir_models,  f"{cfg.ticker}_quantile_H{H}.keras")
+    scaler_X_path = os.path.join(cfg.out_dir_scalers, f"{cfg.ticker}_quantile_H{H}_scaler_X.joblib")
+    scaler_y_path = os.path.join(cfg.out_dir_scalers, f"{cfg.ticker}_quantile_H{H}_scaler_y.joblib")
 
-    if not os.path.exists(model_path) or not os.path.exists(scaler_path):
-        print(f"  H={H}: No saved model. Training required.")
+    if not os.path.exists(model_path) or not os.path.exists(scaler_X_path) or not os.path.exists(scaler_y_path):
+        print(f"  H={H}: No saved model or scalers. Training required.")
         return True
 
     meta_path = os.path.join(cfg.out_dir_models, f"{cfg.ticker}_quantile_H{H}_meta.json")
@@ -252,11 +307,16 @@ def train_and_save(df_feat: pd.DataFrame, cfg: QuantileConfig, H: int):
     n         = len(y_raw)
     val_start = int(n * (1 - cfg.val_ratio_of_train))
 
+    # FIX: scale both X and y on train portion only (leakage-safe)
+    from sklearn.preprocessing import StandardScaler
     scaler_X = RobustScaler().fit(X_raw[:val_start])
-    X_s      = scaler_X.transform(X_raw)
+    scaler_y = StandardScaler().fit(y_raw[:val_start].reshape(-1, 1))
 
-    X_tr, y_tr, _ = make_sequences(X_s, y_raw, 0,         val_start, cfg.window)
-    X_va, y_va, _ = make_sequences(X_s, y_raw, val_start, n,         cfg.window)
+    X_s = scaler_X.transform(X_raw)
+    y_s = scaler_y.transform(y_raw.reshape(-1, 1)).flatten()
+
+    X_tr, y_tr, _ = make_sequences(X_s, y_s, 0,         val_start, cfg.window)
+    X_va, y_va, _ = make_sequences(X_s, y_s, val_start, n,         cfg.window)
     print(f"  Train: {len(X_tr)} sequences | Val: {len(X_va)}")
 
     tf.keras.backend.clear_session()
@@ -275,24 +335,26 @@ def train_and_save(df_feat: pd.DataFrame, cfg: QuantileConfig, H: int):
         verbose=0, shuffle=False,
     )
 
-    model_path  = os.path.join(cfg.out_dir_models,  f"{cfg.ticker}_quantile_H{H}.keras")
-    scaler_path = os.path.join(cfg.out_dir_scalers, f"{cfg.ticker}_quantile_H{H}_scaler.joblib")
-    meta_path   = os.path.join(cfg.out_dir_models,  f"{cfg.ticker}_quantile_H{H}_meta.json")
+    model_path    = os.path.join(cfg.out_dir_models,  f"{cfg.ticker}_quantile_H{H}.keras")
+    scaler_X_path = os.path.join(cfg.out_dir_scalers, f"{cfg.ticker}_quantile_H{H}_scaler_X.joblib")
+    scaler_y_path = os.path.join(cfg.out_dir_scalers, f"{cfg.ticker}_quantile_H{H}_scaler_y.joblib")
+    meta_path     = os.path.join(cfg.out_dir_models,  f"{cfg.ticker}_quantile_H{H}_meta.json")
 
     model.save(model_path)
-    joblib.dump(scaler_X, scaler_path)
+    joblib.dump(scaler_X, scaler_X_path)
+    joblib.dump(scaler_y, scaler_y_path)
     save_json({"trained_on": date.today().isoformat(),
                "n_train": len(X_tr), "ticker": cfg.ticker, "horizon": H}, meta_path)
 
     print(f"  Model saved -> {model_path}")
-    return model, scaler_X
+    return model, scaler_X, scaler_y
 
 
 # ─────────────────────────────────────────────
 # Step 4 — Evaluate on recent 30 days
 # ─────────────────────────────────────────────
 def evaluate_recent(df_feat: pd.DataFrame, cfg: QuantileConfig,
-                    H: int, model, scaler_X) -> float:
+                    H: int, model, scaler_X, scaler_y) -> float:
     target  = make_target(df_feat, H)
     df_work = df_feat.loc[target.dropna().index].copy()
     y_raw   = target.loc[df_work.index].values
@@ -300,17 +362,23 @@ def evaluate_recent(df_feat: pd.DataFrame, cfg: QuantileConfig,
     closes  = df_work["Close"].values
     n       = len(y_raw)
 
+    # FIX: scale y before building sequences, then inverse after predict
+    y_s        = scaler_y.transform(y_raw.reshape(-1, 1)).flatten()
     eval_start = max(0, n - 30 - cfg.window)
     X_s        = scaler_X.transform(X_raw)
-    X_ev, y_ev, ev_idx = make_sequences(X_s, y_raw, eval_start, n, cfg.window)
+    X_ev, y_ev_s, ev_idx = make_sequences(X_s, y_s, eval_start, n, cfg.window)
 
     if len(X_ev) == 0:
         return 0.0
 
-    preds_log   = model.predict(X_ev, verbose=0)
+    preds_s     = model.predict(X_ev, verbose=0)  # shape (n, 3) — scaled log-returns
+    # inverse transform each quantile column
+    preds_log   = scaler_y.inverse_transform(preds_s)
+    y_ev_log    = scaler_y.inverse_transform(y_ev_s.reshape(-1, 1)).flatten()
+
     base_closes = closes[ev_idx]
     q50_price   = base_closes * np.exp(preds_log[:, 1])
-    true_price  = base_closes * np.exp(y_ev.flatten())
+    true_price  = base_closes * np.exp(y_ev_log)
     return mape(true_price, q50_price)
 
 
@@ -354,12 +422,15 @@ def run_walk_forward(cfg: QuantileConfig):
             train_end = train_idx[val_cut]
             val_end   = train_idx[-1] + 1
 
+            from sklearn.preprocessing import StandardScaler
             scaler_X = RobustScaler().fit(X_raw[train_idx[:val_cut]])
+            scaler_y = StandardScaler().fit(y_raw[train_idx[:val_cut]].reshape(-1, 1))
             X_s = scaler_X.transform(X_raw)
+            y_s = scaler_y.transform(y_raw.reshape(-1, 1)).flatten()
 
-            X_tr, y_tr, _      = make_sequences(X_s, y_raw, 0,           train_end,       cfg.window)
-            X_va, y_va, _      = make_sequences(X_s, y_raw, train_end,   val_end,         cfg.window)
-            X_te, y_te, te_idx = make_sequences(X_s, y_raw, test_idx[0], test_idx[-1]+1,  cfg.window)
+            X_tr, y_tr, _        = make_sequences(X_s, y_s, 0,           train_end,         cfg.window)
+            X_va, y_va, _        = make_sequences(X_s, y_s, train_end,   val_end,           cfg.window)
+            X_te, y_te_s, te_idx = make_sequences(X_s, y_s, test_idx[0], test_idx[-1]+1,   cfg.window)
 
             if len(X_tr) == 0 or len(X_te) == 0:
                 continue
@@ -376,12 +447,16 @@ def run_walk_forward(cfg: QuantileConfig):
                                            factor=cfg.lr_factor, min_lr=cfg.lr_min, verbose=0),
                       ], verbose=0, shuffle=False)
 
-            preds_log   = model.predict(X_te, verbose=0)
+            # FIX: inverse transform predictions and true values back to log-return space
+            preds_s     = model.predict(X_te, verbose=0)
+            preds_log   = scaler_y.inverse_transform(preds_s)
+            y_te_log    = scaler_y.inverse_transform(y_te_s.reshape(-1, 1)).flatten()
+
             base_closes = closes[te_idx]
             q10_price   = base_closes * np.exp(preds_log[:, 0])
             q50_price   = base_closes * np.exp(preds_log[:, 1])
             q90_price   = base_closes * np.exp(preds_log[:, 2])
-            true_price  = base_closes * np.exp(y_te.flatten())
+            true_price  = base_closes * np.exp(y_te_log)
 
             fold_mape     = mape(true_price, q50_price)
             fold_coverage = coverage(true_price, q10_price, q90_price)
@@ -452,31 +527,49 @@ def run(cfg: QuantileConfig, force_train: bool = False):
     update_price_data(cfg)
 
     # Step 1b — Update sentiment (collect + score + merge)
-    try:
-        from src.sentiment.collector import collect_and_label
-        from src.sentiment.sentiment_model import load_news, load_finbert_lora, score_news, build_daily_sentiment
-        from src.merge_sentiment_price import load_price_data, load_sentiment_data, merge_price_and_sentiment
-        import importlib, src.merge_sentiment_price as _msp
+    _lora_dir = "outputs/models/finbert_lora_best"
+    _lora_ok  = (
+        os.path.isdir(_lora_dir) and
+        any(f.endswith((".bin", ".safetensors", "adapter_config.json"))
+            for f in os.listdir(_lora_dir))
+    ) if os.path.isdir(_lora_dir) else False
 
-        print("\n[1b/4] Updating sentiment data...")
-        collect_and_label()
+    if not _lora_ok:
+        print("\n[1b/4] LoRA model not found at '%s'." % _lora_dir)
+        print("       Skipping sentiment update — will use price-only features.")
+        print("       To enable sentiment: run train_finbert_phrasebank.py first.")
+    else:
+        try:
+            from src.sentiment.collector import collect_and_label
+            from src.sentiment.sentiment_model import (
+                load_news, load_finbert_lora, score_news, build_daily_sentiment,
+            )
+            from src.merge_sentiment_price import (
+                load_price_data, load_sentiment_data, merge_price_and_sentiment,
+            )
+            import src.merge_sentiment_price as _msp
 
-        df_news = load_news("data/processed/sentiment/news_raw.csv")
-        tokenizer, sent_model = load_finbert_lora()
-        df_scored = score_news(df_news, tokenizer, sent_model)
-        daily_df  = build_daily_sentiment(df_scored)
-        daily_df.to_csv("outputs/AAPL_news_daily.csv", index=False, encoding="utf-8-sig")
+            print("\n[1b/4] Updating sentiment data...")
+            collect_and_label()
 
-        price_df = load_price_data(_msp.PRICE_CSV)
-        sent_df  = load_sentiment_data(_msp.SENTIMENT_CSV)
-        merged   = merge_price_and_sentiment(price_df, sent_df)
-        merged.to_csv(_msp.OUT_CSV, index=False, encoding="utf-8-sig")
-        print("  Sentiment updated.")
-    except Exception as e:
-        print(f"  Sentiment update skipped: {e}")
+            df_news               = load_news("data/processed/sentiment/news_raw.csv")
+            tokenizer, sent_model = load_finbert_lora()
+            df_scored             = score_news(df_news, tokenizer, sent_model)
+            daily_df              = build_daily_sentiment(df_scored)
+            daily_df.to_csv("outputs/AAPL_news_daily.csv", index=False, encoding="utf-8-sig")
 
-    # Step 2 — Load merged price + sentiment features
-    df_feat = load_merged_features(cfg)
+            price_df = load_price_data(_msp.PRICE_CSV)
+            sent_df  = load_sentiment_data(_msp.SENTIMENT_CSV)
+            merged   = merge_price_and_sentiment(price_df, sent_df)
+            merged.to_csv(_msp.OUT_CSV, index=False, encoding="utf-8-sig")
+            print("  Sentiment updated successfully.")
+
+        except Exception as e:
+            print(f"  Sentiment update failed: {e}")
+            print("  Continuing with existing data (or price-only fallback).")
+
+    # Step 2 — Load features (با fallback به price-only اگه merged CSV نبود)
+    df_feat = _load_features_with_fallback(cfg)
     last_date  = df_feat.index[-1]
     last_close = df_feat["Close"].iloc[-1]
     X_last     = df_feat[FEATURE_COLS].values
@@ -485,36 +578,39 @@ def run(cfg: QuantileConfig, force_train: bool = False):
     results = {}
 
     for H in cfg.horizons:
-        model_path  = os.path.join(cfg.out_dir_models,  f"{cfg.ticker}_quantile_H{H}.keras")
-        scaler_path = os.path.join(cfg.out_dir_scalers, f"{cfg.ticker}_quantile_H{H}_scaler.joblib")
+        model_path    = os.path.join(cfg.out_dir_models,  f"{cfg.ticker}_quantile_H{H}.keras")
+        scaler_X_path = os.path.join(cfg.out_dir_scalers, f"{cfg.ticker}_quantile_H{H}_scaler_X.joblib")
+        scaler_y_path = os.path.join(cfg.out_dir_scalers, f"{cfg.ticker}_quantile_H{H}_scaler_y.joblib")
 
         needs_train = force_train or model_needs_training(cfg, H)
 
         if needs_train:
-            model, scaler_X = train_and_save(df_feat, cfg, H)
+            model, scaler_X, scaler_y = train_and_save(df_feat, cfg, H)
         else:
             model = tf.keras.models.load_model(
                 model_path,
                 custom_objects={"loss": pinball_loss(cfg.quantiles)}
             )
-            scaler_X = joblib.load(scaler_path)
+            scaler_X = joblib.load(scaler_X_path)
+            scaler_y = joblib.load(scaler_y_path)
             print(f"  H={H}: Model loaded.")
 
         # Step 3 — Check recent performance
         print(f"\n[3/4] Evaluating recent performance (H={H})...")
-        recent_mape = evaluate_recent(df_feat, cfg, H, model, scaler_X)
+        recent_mape = evaluate_recent(df_feat, cfg, H, model, scaler_X, scaler_y)
         print(f"  Recent MAPE (last 30 days): {recent_mape:.2f}%")
 
         if recent_mape > cfg.retrain_mape_threshold and not needs_train:
             print(f"  MAPE above threshold ({cfg.retrain_mape_threshold}%). Retraining...")
-            model, scaler_X = train_and_save(df_feat, cfg, H)
-            recent_mape = evaluate_recent(df_feat, cfg, H, model, scaler_X)
+            model, scaler_X, scaler_y = train_and_save(df_feat, cfg, H)
+            recent_mape = evaluate_recent(df_feat, cfg, H, model, scaler_X, scaler_y)
             print(f"  MAPE after retrain: {recent_mape:.2f}%")
 
-        # Step 4 — Predict
+        # Step 4 — Predict (FIX: inverse transform scaled predictions)
         X_last_scaled = scaler_X.transform(X_last[-cfg.window:])
         X_input       = X_last_scaled.reshape(1, cfg.window, -1)
-        pred_log      = model.predict(X_input, verbose=0)[0]
+        pred_s        = model.predict(X_input, verbose=0)           # scaled, shape (1, 3)
+        pred_log      = scaler_y.inverse_transform(pred_s)[0]       # actual log-returns
 
         q10_price  = last_close * np.exp(pred_log[0])
         q50_price  = last_close * np.exp(pred_log[1])
