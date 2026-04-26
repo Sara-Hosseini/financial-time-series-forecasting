@@ -235,3 +235,20 @@ outputs/AAPL_news_raw.csv
 outputs/AAPL_news_daily.csv
 outputs/AAPL_news_scored.csv
 outputs/AAPL_price_sentiment_merged.csv
+# Outputs
+outputs/
+*.png
+*.csv
+*.json
+
+# Models
+*.keras
+*.h5
+*.joblib
+
+# Python
+__pycache__/
+*.pyc
+
+# Env
+venv/
