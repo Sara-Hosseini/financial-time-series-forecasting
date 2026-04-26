@@ -126,7 +126,7 @@ def main():
     if not api_key:
         raise RuntimeError("ALPHAVANTAGE_API_KEY is not found in .env")
 
-    tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA"]
+    tickers = ["AAPL", "MSFT", "NVDA"]
     summary_rows = []
 
     out_dir = r"D:\lessons\season 4\code\stock-transformer-project\data\processed"
@@ -141,14 +141,14 @@ def main():
             news_raw_path = os.path.join(out_dir, f"{t}_news_raw.csv")
             news_daily_path = os.path.join(out_dir, f"{t}_news_daily.csv")
 
-            # ✅ CACHE: اگر فایل‌ها موجود باشند، API نزن
+            # CACHE: if files exist, skip API call
             if os.path.exists(news_raw_path) and os.path.exists(news_daily_path):
                 print(f"[CACHE] Using existing files for {t}")
                 df = pd.read_csv(news_raw_path)
                 daily = pd.read_csv(news_daily_path)
 
             else:
-                # pace requests فقط وقتی واقعاً API می‌زنیم
+                # pace requests only when actually calling API
                 if i > 0:
                     print("Sleeping 13s to avoid rate-limit ...")
                     time.sleep(13)
@@ -193,4 +193,3 @@ def main():
     summary_path = os.path.join(out_dir, "summary.csv")
     summary_df.to_csv(summary_path, index=False, encoding="utf-8-sig")
     print("Saved summary:", summary_path)
-

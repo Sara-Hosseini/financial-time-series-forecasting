@@ -72,11 +72,18 @@ FEATURE_COLS = PRICE_FEATURE_COLS + SENTIMENT_FEATURE_COLS
 # ─────────────────────────────────────────────
 @dataclass
 class QuantileConfig:
-    ticker: str = "AAPL"
-    csv_path: str = "data/raw/AAPL_daily_10y_yahoo.csv"
-    merged_csv_path: str = "outputs/AAPL_price_sentiment_merged.csv"
+    ticker: str = os.environ.get("TICKER", "AAPL")
+
+    @property
+    def csv_path(self) -> str:
+        return f"data/raw/{self.ticker}_daily_10y_yahoo.csv"
+
+    @property
+    def merged_csv_path(self) -> str:
+        return f"outputs/{self.ticker}_price_sentiment_merged.csv"
+
     date_format: str = "%Y-%m-%d"
-    horizons: Tuple[int, ...] = (1, 5,10)
+    horizons: Tuple[int, ...] = (1, 5, 10)
     test_years: Tuple[int, ...] = (2021, 2022, 2023, 2024, 2025)
     val_ratio_of_train: float = 0.10
     quantiles: Tuple[float, ...] = (0.1, 0.5, 0.9)
@@ -94,11 +101,11 @@ class QuantileConfig:
     lr_factor: float = 0.5
     lr_min: float = 1e-6
     retrain_mape_threshold: float = 7.0
-    out_dir_models:  str = "outputs/models"
+    out_dir_models: str = "outputs/models"
     out_dir_scalers: str = "outputs/scalers"
     out_dir_metrics: str = "outputs/metrics"
-    out_dir_plots:   str = "outputs/plots"
-    out_dir_preds:   str = "outputs/predictions"
+    out_dir_plots: str = "outputs/plots"
+    out_dir_preds: str = "outputs/predictions"
 
 def load_merged_features(cfg: QuantileConfig) -> pd.DataFrame:
     """
@@ -136,11 +143,11 @@ def load_merged_features(cfg: QuantileConfig) -> pd.DataFrame:
 
 def _load_features_with_fallback(cfg: QuantileConfig) -> pd.DataFrame:
     """
-    سعی میکنه merged CSV (قیمت + سنتیمنت) رو لود کنه.
-    اگه فایل نبود یا خراب بود، فقط از داده قیمتی استفاده میکنه
-    و ستون‌های سنتیمنت رو با صفر پر میکنه.
+    Tries to load merged CSV (price + sentiment).
+    If file is missing or corrupted, falls back to price-only data
+    and fills sentiment columns with zero.
     """
-    # حالت ۱: merged CSV موجوده → همونو لود کن
+    # Case 1: merged CSV exists -> load it
     if os.path.exists(cfg.merged_csv_path):
         try:
             df = load_merged_features(cfg)
@@ -148,35 +155,33 @@ def _load_features_with_fallback(cfg: QuantileConfig) -> pd.DataFrame:
             if n_sent > 0:
                 print(f"  Loaded merged features ({len(df)} rows, {n_sent} active sentiment cols)")
             else:
-                print(f"  Loaded merged features ({len(df)} rows, sentiment cols all zero — no news data yet)")
+                print(f"  Loaded merged features ({len(df)} rows, sentiment cols all zero - no news data yet)")
             return df
         except Exception as e:
             print(f"  Warning: merged CSV load failed ({e}). Falling back to price-only.")
 
-    # حالت ۲: fallback — فقط داده قیمتی
+    # Case 2: fallback - price-only data
     print(f"  Merged CSV not found at '{cfg.merged_csv_path}'.")
     print("  Using price-only features. Sentiment columns will be zero.")
     print("  To add sentiment: run the full pipeline (collector → sentiment_model → merge).")
 
     if not os.path.exists(cfg.csv_path):
-        raise FileNotFoundError(
-            f"Neither merged CSV nor price CSV found.
-"
-            f"  merged : {cfg.merged_csv_path}
-"
-            f"  price  : {cfg.csv_path}
-"
+        msg = (
+            "Neither merged CSV nor price CSV found.\n"
+            f"  merged : {cfg.merged_csv_path}\n"
+            f"  price  : {cfg.csv_path}\n"
             "Run data_collection.py first."
         )
+        raise FileNotFoundError(msg)
 
     df = load_prices(cfg.csv_path, cfg.date_format)
     df = add_features(df)
 
-    # اضافه کردن ستون‌های سنتیمنت با مقدار صفر (neutral)
+    # Add sentiment columns with zero values (neutral baseline)
     for col in SENTIMENT_FEATURE_COLS:
         df[col] = 0.0
 
-    # ذخیره به عنوان merged CSV تا دفعه بعد نیازی به fallback نباشه
+    # Save as merged CSV so next run does not need fallback
     os.makedirs(os.path.dirname(cfg.merged_csv_path), exist_ok=True)
     price_cols = ["Open", "High", "Low", "Close", "Volume"] + SENTIMENT_FEATURE_COLS
     save_cols  = [c for c in price_cols if c in df.columns]
@@ -466,7 +471,7 @@ def run_walk_forward(cfg: QuantileConfig):
             fold_metrics.append({"year": year, "mape_pct": round(fold_mape, 4),
                                   "coverage_pct": round(fold_coverage, 2),
                                   "interval_width": round(fold_width, 4),
-                                  "dir_acc_pct": round(fold_dir, 2), "n_test": len(y_te)})
+                                  "dir_acc_pct": round(fold_dir, 2), "n_test": len(X_te)})
             print(f"  MAPE={fold_mape:.2f}%  Coverage={fold_coverage:.1f}%  "
                   f"Width=${fold_width:.2f}  DirAcc={fold_dir:.1f}%")
 
@@ -556,19 +561,25 @@ def run(cfg: QuantileConfig, force_train: bool = False):
             tokenizer, sent_model = load_finbert_lora()
             df_scored             = score_news(df_news, tokenizer, sent_model)
             daily_df              = build_daily_sentiment(df_scored)
-            daily_df.to_csv("outputs/AAPL_news_daily.csv", index=False, encoding="utf-8-sig")
+            daily_path = f"outputs/{cfg.ticker}_news_daily.csv"
+            daily_df_ticker = daily_df[daily_df["ticker"] == cfg.ticker].copy() if "ticker" in daily_df.columns else daily_df.copy()
+            daily_df_ticker.to_csv(daily_path, index=False, encoding="utf-8-sig")
 
-            price_df = load_price_data(_msp.PRICE_CSV)
-            sent_df  = load_sentiment_data(_msp.SENTIMENT_CSV)
-            merged   = merge_price_and_sentiment(price_df, sent_df)
-            merged.to_csv(_msp.OUT_CSV, index=False, encoding="utf-8-sig")
-            print("  Sentiment updated successfully.")
+            price_df = load_price_data(cfg.csv_path)
+            sent_df = load_sentiment_data(daily_path)
+            merged = merge_price_and_sentiment(price_df, sent_df)
+
+            os.makedirs("outputs", exist_ok=True)
+            merged.to_csv(cfg.merged_csv_path, index=False, encoding="utf-8-sig")
+
+            print(f"  Sentiment merged successfully -> {cfg.merged_csv_path}")           
+            
 
         except Exception as e:
             print(f"  Sentiment update failed: {e}")
             print("  Continuing with existing data (or price-only fallback).")
 
-    # Step 2 — Load features (با fallback به price-only اگه merged CSV نبود)
+    # Step 2 — Load features (with fallback to price-only if merged CSV missing)
     df_feat = _load_features_with_fallback(cfg)
     last_date  = df_feat.index[-1]
     last_close = df_feat["Close"].iloc[-1]
@@ -651,6 +662,14 @@ def run(cfg: QuantileConfig, force_train: bool = False):
 # Entry point
 # ─────────────────────────────────────────────
 if __name__ == "__main__":
+    ticker = os.environ.get("TICKER", "AAPL")
+
+    if "--ticker" in sys.argv:
+        idx = sys.argv.index("--ticker")
+        if idx + 1 < len(sys.argv):
+            ticker = sys.argv[idx + 1]
+
+    os.environ["TICKER"] = ticker
     cfg = QuantileConfig()
 
     if "--eval" in sys.argv:

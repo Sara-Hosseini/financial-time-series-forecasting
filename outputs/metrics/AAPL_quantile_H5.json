@@ -1,0 +1,48 @@
+{
+  "avg_mape_pct": 2.9853,
+  "avg_coverage_pct": 80.08,
+  "avg_width": 16.8407,
+  "avg_dir_acc_pct": 55.3,
+  "folds": [
+    {
+      "year": 2021,
+      "mape_pct": 2.5722,
+      "coverage_pct": 80.56,
+      "interval_width": 12.8371,
+      "dir_acc_pct": 59.13,
+      "n_test": 252
+    },
+    {
+      "year": 2022,
+      "mape_pct": 3.8145,
+      "coverage_pct": 76.89,
+      "interval_width": 17.5562,
+      "dir_acc_pct": 43.03,
+      "n_test": 251
+    },
+    {
+      "year": 2023,
+      "mape_pct": 2.445,
+      "coverage_pct": 85.2,
+      "interval_width": 14.6548,
+      "dir_acc_pct": 63.2,
+      "n_test": 250
+    },
+    {
+      "year": 2024,
+      "mape_pct": 2.5827,
+      "coverage_pct": 79.37,
+      "interval_width": 16.632,
+      "dir_acc_pct": 59.92,
+      "n_test": 252
+    },
+    {
+      "year": 2025,
+      "mape_pct": 3.512,
+      "coverage_pct": 78.4,
+      "interval_width": 22.5232,
+      "dir_acc_pct": 51.2,
+      "n_test": 250
+    }
+  ]
+}

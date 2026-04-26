@@ -14,7 +14,7 @@ import yfinance as yf
 # ─────────────────────────────────────────────
 # Configuration
 # ─────────────────────────────────────────────
-TICKERS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA"]  # tech stocks group
+TICKERS = ["AAPL", "MSFT", "NVDA"]  # stable / moderate / volatile
 
 # Label thresholds based on next-day price change
 POSITIVE_THRESHOLD = 0.5   # > +0.5% → positive

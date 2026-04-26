@@ -1,5 +1,4 @@
-
-#save the final train model
+# Train final LSTM models for AAPL, MSFT, NVDA
 
 import os
 import warnings
@@ -20,13 +19,11 @@ SEED = 42
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
 
-# setting
-TICKER     = "AAPL"
-CSV_PATH   = "data/raw/AAPL_daily_10y_yahoo.csv"
+# Settings
+TICKERS    = ["AAPL", "MSFT", "NVDA"]
 HORIZONS   = [5, 10]
 WINDOW     = 30
 VAL_RATIO  = 0.10
-
 UNITS1     = 64
 UNITS2     = 32
 DROPOUT    = 0.25
@@ -36,7 +33,6 @@ BATCH_SIZE = 32
 
 OUT_MODELS  = "outputs/models"
 OUT_SCALERS = "outputs/scalers"
-
 os.makedirs(OUT_MODELS,  exist_ok=True)
 os.makedirs(OUT_SCALERS, exist_ok=True)
 
@@ -45,8 +41,6 @@ FEATURE_COLS = [
     "ma_ratio_5", "ma_ratio_10",
     "hl_range", "vol_10", "vol_20", "rsi_14",
 ]
-
-# functions
 
 def load_prices(csv_path):
     df = pd.read_csv(csv_path)
@@ -64,7 +58,6 @@ def load_prices(csv_path):
             df[c] = pd.to_numeric(df[c], errors="coerce")
     return df.dropna(subset=["Close"])
 
-
 def add_features(df):
     out = df.copy()
     out["log_ret_1"]   = np.log(out["Close"] / out["Close"].shift(1))
@@ -81,7 +74,6 @@ def add_features(df):
     out["rsi_14"] = 100 - (100 / (1 + gain / (loss + 1e-12)))
     return out.dropna()
 
-
 def make_sequences(X, y, start, end, window):
     Xs, ys, idxs = [], [], []
     for t in range(start, end):
@@ -91,7 +83,6 @@ def make_sequences(X, y, start, end, window):
         ys.append(y[t])
         idxs.append(t)
     return np.array(Xs), np.array(ys).reshape(-1, 1), np.array(idxs)
-
 
 def build_model(window, n_features):
     model = Sequential([
@@ -109,75 +100,67 @@ def build_model(window, n_features):
     )
     return model
 
-
-# implementation
 if __name__ == "__main__":
-    print(f"Loading data: {CSV_PATH}")
-    df_raw  = load_prices(CSV_PATH)
-    df_feat = add_features(df_raw)
-    print(f"Dataset: {len(df_feat)} rows ({df_feat.index[0].date()} → {df_feat.index[-1].date()})")
+    for TICKER in TICKERS:
+        CSV_PATH = f"data/raw/{TICKER}_daily_10y_yahoo.csv"
+        if not os.path.exists(CSV_PATH):
+            print(f"\nSkipping {TICKER} — file not found: {CSV_PATH}")
+            continue
 
-    for H in HORIZONS:
-        print(f"\n{'='*50}")
-        print(f"  Training final model | Horizon = {H} days")
-        print(f"{'='*50}")
+        print(f"\n{'='*55}")
+        print(f"  Training ticker: {TICKER}")
+        print(f"{'='*55}")
+        df_raw  = load_prices(CSV_PATH)
+        df_feat = add_features(df_raw)
+        print(f"Dataset: {len(df_feat)} rows ({df_feat.index[0].date()} -> {df_feat.index[-1].date()})")
 
-        # target
-        y_full  = np.log(df_feat["Close"].shift(-H) / (df_feat["Close"] + 1e-12)).dropna()
-        df_work = df_feat.loc[y_full.index].copy()
+        for H in HORIZONS:
+            print(f"\n{'='*50}")
+            print(f"  Horizon = {H} days")
+            print(f"{'='*50}")
 
-        X_raw = df_work[FEATURE_COLS].values
-        y_raw = y_full.values
-        n     = len(y_raw)
+            y_full  = np.log(df_feat["Close"].shift(-H) / (df_feat["Close"] + 1e-12)).dropna()
+            df_work = df_feat.loc[y_full.index].copy()
+            X_raw   = df_work[FEATURE_COLS].values
+            y_raw   = y_full.values
+            n       = len(y_raw)
 
-        #final VAL_RATIO = validation
-        val_start = int(n * (1 - VAL_RATIO))
+            val_start = int(n * (1 - VAL_RATIO))
+            print(f"  Train: {val_start} rows | Val: {n - val_start} rows")
 
-        print(f"  Train: {val_start} rows | Val: {n - val_start} rows")
+            scaler_X = RobustScaler().fit(X_raw[:val_start])
+            scaler_y = StandardScaler().fit(y_raw[:val_start].reshape(-1, 1))
+            X_s = scaler_X.transform(X_raw)
+            y_s = scaler_y.transform(y_raw.reshape(-1, 1)).flatten()
 
-        # just on scaler train
-        scaler_X = RobustScaler().fit(X_raw[:val_start])
-        scaler_y = StandardScaler().fit(y_raw[:val_start].reshape(-1, 1))
+            X_tr, y_tr, _ = make_sequences(X_s, y_s, 0,         val_start, WINDOW)
+            X_va, y_va, _ = make_sequences(X_s, y_s, val_start, n,         WINDOW)
+            print(f"  Sequences — Train: {len(X_tr)} | Val: {len(X_va)}")
 
-        X_s = scaler_X.transform(X_raw)
-        y_s = scaler_y.transform(y_raw.reshape(-1, 1)).flatten()
+            tf.keras.backend.clear_session()
+            model = build_model(WINDOW, X_tr.shape[-1])
 
-        X_tr, y_tr, _ = make_sequences(X_s, y_s, 0,         val_start, WINDOW)
-        X_va, y_va, _ = make_sequences(X_s, y_s, val_start, n,         WINDOW)
+            callbacks = [
+                EarlyStopping(monitor="val_loss", patience=20,
+                              min_delta=1e-5, restore_best_weights=True, verbose=1),
+                ReduceLROnPlateau(monitor="val_loss", patience=6,
+                                  factor=0.5, min_lr=1e-6, verbose=1),
+            ]
 
-        print(f"  Sequences — Train: {len(X_tr)} | Val: {len(X_va)}")
+            model.fit(X_tr, y_tr, validation_data=(X_va, y_va),
+                      epochs=EPOCHS, batch_size=BATCH_SIZE,
+                      callbacks=callbacks, verbose=1, shuffle=False)
 
-        tf.keras.backend.clear_session()
-        model = build_model(WINDOW, X_tr.shape[-1])
+            model_path    = os.path.join(OUT_MODELS,  f"{TICKER}_H{H}_final.keras")
+            scaler_X_path = os.path.join(OUT_SCALERS, f"{TICKER}_H{H}_scaler_X.joblib")
+            scaler_y_path = os.path.join(OUT_SCALERS, f"{TICKER}_H{H}_scaler_y.joblib")
 
-        callbacks = [
-            EarlyStopping(monitor="val_loss", patience=20,
-                          min_delta=1e-5, restore_best_weights=True, verbose=1),
-            ReduceLROnPlateau(monitor="val_loss", patience=6,
-                              factor=0.5, min_lr=1e-6, verbose=1),
-        ]
+            model.save(model_path)
+            joblib.dump(scaler_X, scaler_X_path)
+            joblib.dump(scaler_y, scaler_y_path)
 
-        model.fit(
-            X_tr, y_tr,
-            validation_data=(X_va, y_va),
-            epochs=EPOCHS,
-            batch_size=BATCH_SIZE,
-            callbacks=callbacks,
-            verbose=1,
-            shuffle=False,
-        )
+            print(f"\n  Model   -> {model_path}")
+            print(f"  Scaler X -> {scaler_X_path}")
+            print(f"  Scaler y -> {scaler_y_path}")
 
-        # save scaler ه
-        model_path   = os.path.join(OUT_MODELS,  f"{TICKER}_H{H}_final.keras")
-        scaler_X_path = os.path.join(OUT_SCALERS, f"{TICKER}_H{H}_scaler_X.joblib")
-        scaler_y_path = os.path.join(OUT_SCALERS, f"{TICKER}_H{H}_scaler_y.joblib")
-
-        model.save(model_path)
-        joblib.dump(scaler_X, scaler_X_path)
-        joblib.dump(scaler_y, scaler_y_path)
-
-        print(f"\n  ✅ Model   → {model_path}")
-        print(f"  ✅ Scaler X → {scaler_X_path}")
-        print(f"  ✅ Scaler y → {scaler_y_path}")
-
-    print("\n✅ Training complete. Now run predict.py")
+    print("\nTraining complete for all tickers.")

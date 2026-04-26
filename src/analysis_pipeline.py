@@ -43,9 +43,9 @@ def load_price_data(path: str) -> pd.DataFrame:
 
 def _build_date_windows(start_yyyymmdd: str, end_yyyymmdd: str, chunk_days: int = 3):
     """
-    تاریخ شروع و پایان رو به بازه‌های کوچک‌تر تقسیم میکنه
-    تا محدودیت free-tier Alpha Vantage رو دور بزنیم.
-    مثال: 10 روز با chunk_days=3  →  3 بازه (3+3+4)
+    Splits start/end date range into smaller chunks
+    to work around Alpha Vantage free-tier rate limits.
+    Example: 10 days with chunk_days=3  ->  3 windows (3+3+4)
     """
     from datetime import datetime, timedelta
     fmt   = "%Y%m%d"
@@ -77,18 +77,18 @@ def build_daily_sentiment_10days(
     """
     Fetch Alpha Vantage NEWS_SENTIMENT in smaller windows to overcome free API limitations.
 
-    اگه start/end داده نشه، به‌طور خودکار 10 روز اخیر (به‌جز امروز) رو میگیره.
+    If start/end not provided, automatically uses the last 10 days (excluding today).
 
     Returns DataFrame with columns:
       Date, sentiment_mean, news_count, relevance_mean
     """
     from datetime import datetime, timedelta
 
-    # ── تاریخ‌های dynamic
+    # -- Dynamic date range
     if start_yyyymmdd is None or end_yyyymmdd is None:
         today     = datetime.today()
-        end_dt    = today - timedelta(days=1)          # دیروز
-        start_dt  = end_dt - timedelta(days=9)         # 10 روز اخیر
+        end_dt    = today - timedelta(days=1)          # yesterday
+        start_dt  = end_dt - timedelta(days=9)         # last 10 days
         start_yyyymmdd = start_dt.strftime("%Y%m%d")
         end_yyyymmdd   = end_dt.strftime("%Y%m%d")
 
@@ -150,7 +150,7 @@ def build_daily_sentiment_10days(
     out = daily_agg.merge(rel, on="Date", how="left")
     out["relevance_mean"] = out["relevance_mean"].fillna(0.0)
 
-    # فیلتر dynamic بر اساس start/end که به تابع پاس داده شده
+    # Dynamic filter based on start/end passed to the function
     out = out.sort_values("Date")
     out = out[
         (out["Date"] >= pd.to_datetime(start_yyyymmdd, format="%Y%m%d")) &
@@ -272,7 +272,7 @@ if __name__ == "__main__":
     print("Saved merged CSV to:", f"data/processed/{ticker}_price_sentiment_features.csv")
     print(df_merged.tail(5))
 
-    # ✅ 10-day sample — تاریخ‌های dynamic (10 روز اخیر)
+    # 10-day sample — dynamic dates (last 10 days)
     from datetime import datetime, timedelta
     end_date   = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
     start_date = (datetime.today() - timedelta(days=10)).strftime("%Y-%m-%d")

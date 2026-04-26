@@ -294,7 +294,7 @@ def print_summary(results: dict) -> str:
 # Main
 # ============================================================
 def ensure_dataset(csv_path: str) -> str:
-    """دانلود خودکار دیتاست اگه فایل نباشه — مشابه train_finbert_phrasebank.py"""
+    """Auto-download dataset if file is missing — same logic as train_finbert_phrasebank.py"""
     if os.path.exists(csv_path):
         return csv_path
     print(f"Dataset not found at '{csv_path}'. Auto-downloading from HuggingFace...")

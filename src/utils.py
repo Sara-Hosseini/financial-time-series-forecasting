@@ -1,6 +1,6 @@
 # src/utils.py
 # ─────────────────────────────────────────────────────────────
-# توابع مشترک — همه فایل‌های دیگه از اینجا import میکنن
+# Shared utilities — imported by all other modules
 # load_prices, add_features, make_sequences, metrics
 # ─────────────────────────────────────────────────────────────
 
@@ -14,7 +14,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 
 
 # ─────────────────────────────────────────────
-# ستون‌های feature — یه بار تعریف میشه
+# Feature columns — defined once here
 # ─────────────────────────────────────────────
 FEATURE_COLS = [
     "log_ret_1", "ret_5", "ret_10",
@@ -24,7 +24,7 @@ FEATURE_COLS = [
 
 
 # ─────────────────────────────────────────────
-# بارگذاری داده
+# Data loading
 # ─────────────────────────────────────────────
 def load_prices(csv_path: str, date_format: str = "%Y-%m-%d") -> pd.DataFrame:
     df = pd.read_csv(csv_path)
@@ -75,7 +75,7 @@ def make_target(df: pd.DataFrame, H: int) -> pd.Series:
 
 
 # ─────────────────────────────────────────────
-# ساخت sequence برای LSTM
+# Build sequences for LSTM
 # ─────────────────────────────────────────────
 def make_sequences(
     X_scaled: np.ndarray,
@@ -95,7 +95,7 @@ def make_sequences(
 
 
 # ─────────────────────────────────────────────
-# معیارهای ارزیابی
+# Evaluation metrics
 # ─────────────────────────────────────────────
 def rmse(a, b) -> float:
     return float(np.sqrt(mean_squared_error(a, b)))
@@ -120,17 +120,17 @@ def dir_acc(c_t, c_true, c_pred) -> float:
     return float(np.mean(actual[mask] == pred[mask]) * 100.0)
 
 def coverage(y_true, y_low, y_high) -> float:
-    """درصد مقادیر واقعی داخل بازه — برای Quantile Regression"""
+    """Percentage of true values inside the interval — for Quantile Regression"""
     inside = np.sum((y_true >= y_low) & (y_true <= y_high))
     return float(inside / len(y_true) * 100)
 
 def interval_width(y_low, y_high) -> float:
-    """میانگین عرض بازه — برای Quantile Regression"""
+    """Average interval width — for Quantile Regression"""
     return float(np.mean(y_high - y_low))
 
 
 # ─────────────────────────────────────────────
-# ابزارهای کمکی
+# Utility helpers
 # ─────────────────────────────────────────────
 def ensure_dirs(*paths: str):
     for p in paths:

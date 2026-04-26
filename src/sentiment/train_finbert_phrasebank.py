@@ -58,7 +58,7 @@ BATCH_SIZE     = 16
 EPOCHS         = 5
 LEARNING_RATE  = 2e-4
 
-# LoRA hyper-parameters (طبق خواسته استاد)
+# LoRA hyper-parameters
 LORA_R         = 16      # rank
 LORA_ALPHA     = 32      # scaling factor
 LORA_DROPOUT   = 0.1
@@ -230,9 +230,9 @@ def evaluate(model, loader, device) -> dict:
 # ============================================================
 def ensure_dataset(csv_path: str) -> str:
     """
-    اگه فایل CSV وجود نداشت، از HuggingFace datasets دانلود میکنه.
-    منبع اول: Twitter Financial News Sentiment (9543 نمونه)
-    منبع دوم: Financial PhraseBank (fallback)
+    Auto-downloads dataset from HuggingFace if CSV file is not found locally.
+    Source 1: Twitter Financial News Sentiment (9543 samples)
+    Source 2: Financial PhraseBank (fallback)
     """
     if os.path.exists(csv_path):
         print(f"Dataset found: {csv_path}")
@@ -244,7 +244,7 @@ def ensure_dataset(csv_path: str) -> str:
     try:
         from datasets import load_dataset as hf_load
 
-        # --- منبع اول: Twitter Financial News
+        # --- Source 1: Twitter Financial News
         try:
             print("  Trying: zeroshot/twitter-financial-news-sentiment ...")
             ds = hf_load("zeroshot/twitter-financial-news-sentiment", split="train")
@@ -257,7 +257,7 @@ def ensure_dataset(csv_path: str) -> str:
         except Exception as e1:
             print(f"  Twitter Financial News failed: {e1}")
 
-        # --- منبع دوم: Financial PhraseBank
+        # --- Source 2: Financial PhraseBank (fallback)
         print("  Trying: financial_phrasebank (sentences_allagree) ...")
         ds = hf_load("financial_phrasebank", "sentences_allagree", trust_remote_code=True)
         df = ds["train"].to_pandas()
@@ -269,15 +269,15 @@ def ensure_dataset(csv_path: str) -> str:
 
     except ImportError:
         raise RuntimeError(
-            "کتابخانه 'datasets' نصب نیست.\n"
-            "نصب کنید:  pip install datasets\n"
-            f"یا فایل CSV رو اینجا بذارید: {csv_path}\n"
-            "ستون‌های مورد نیاز: text, label  (label: positive/negative/neutral)"
+            "Package 'datasets' is not installed.\n"
+            "Install it with:  pip install datasets\n"
+            f"Or place your CSV manually at: {csv_path}\n"
+            "Required columns: text, label  (label: positive/negative/neutral)"
         )
     except Exception as e:
         raise RuntimeError(
-            f"دانلود خودکار شکست خورد: {e}\n"
-            f"لطفاً فایل CSV رو اینجا بذارید: {csv_path}"
+            f"Auto-download failed: {e}\n"
+            f"Please place your CSV manually at: {csv_path}"
         )
 
 
@@ -286,7 +286,7 @@ def main():
     print(f"Device : {DEVICE}")
     print(f"LoRA   : r={LORA_R}, alpha={LORA_ALPHA}, targets={LORA_TARGETS}")
 
-    # ── Load data (auto-download if not found) ─────────────
+    # -- Load data (auto-download if not found)
     ensure_dataset(DATA_CSV)
     print(f"\nLoading dataset: {DATA_CSV}")
     df = load_dataset(DATA_CSV)
