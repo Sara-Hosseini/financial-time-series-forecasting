@@ -222,9 +222,8 @@ def step8_walk_forward():
         from src.models.lstm_quantile import QuantileConfig, run_walk_forward
         for ticker in TICKERS:
             log(f"  Walk-Forward for {ticker}...")
-            cfg = QuantileConfig(ticker=ticker,
-                                 csv_path=f"data/raw/{ticker}_daily_10y_yahoo.csv",
-                                 merged_csv_path=f"outputs/{ticker}_price_sentiment_merged.csv")
+            os.environ["TICKER"] = ticker
+            cfg = QuantileConfig()
             run_walk_forward(cfg)
         log_ok("Walk-Forward evaluation complete for all tickers")
         mark("walk_forward", "ok")

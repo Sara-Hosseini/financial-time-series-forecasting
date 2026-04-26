@@ -268,15 +268,16 @@ def step8_walk_forward():
     log_step(8, "Walk-Forward Evaluation — AAPL, MSFT, NVDA")
     try:
         from src.models.lstm_quantile import QuantileConfig, run_walk_forward
+
         for ticker in TICKERS:
             log(f"  Walk-Forward for {ticker}...")
-            cfg = QuantileConfig(ticker=ticker,
-                                 csv_path=f"data/raw/{ticker}_daily_10y_yahoo.csv",
-                                 merged_csv_path=f"outputs/{ticker}_price_sentiment_merged.csv")
+            cfg = QuantileConfig(ticker=ticker)
             run_walk_forward(cfg)
+
         log_ok("Walk-Forward evaluation complete for all tickers")
         mark("walk_forward", "ok")
         return True
+
     except Exception as e:
         log_warn(f"Walk-Forward failed: {e}")
         mark("walk_forward", "fail")
