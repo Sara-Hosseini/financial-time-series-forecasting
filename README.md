@@ -100,6 +100,11 @@ Raw Market Data
 - Yahoo Finance
 - Daily OHLCV prices
 - Approximately 10 years of historical data
+### Financial PhraseBank
+
+The Financial PhraseBank dataset is publicly available from its original source and is therefore not redistributed in this repository.
+
+Please download it directly from the original source before running the sentiment fine-tuning pipeline.
 
 ### Financial News
 
