@@ -257,3 +257,9 @@ https://www.linkedin.com/in/sara-hosseini-analyst/
 
 GitHub:
 https://github.com/Sara-Hosseini
+
+Portfolio:
+https://sara-hosseini.github.io/
+
+Email:
+sarahosseinigh@gmail.com
