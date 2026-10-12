@@ -55,7 +55,7 @@ This research addresses three main questions:
 - Sentiment LSTM
 - Sentiment Shift LSTM
 - Quantile LSTM
-- Transformer Quantile Model (TFT)
+- Transformer Quantile Model (experimental)
 - XGBoost Baseline
 - Event-enhanced Models
 
@@ -108,9 +108,9 @@ Please download it directly from the original source before running the sentimen
 
 ### Financial News
 
-- Financial PhraseBank
-- Financial News Articles
-- FinBERT Sentiment Scores
+- News articles collected from Alpha Vantage, GDELT and Yahoo Finance News
+- Financial PhraseBank (used to fine-tune the sentiment model)
+- FinBERT + LoRA sentiment scores
 
 ---
 
@@ -118,8 +118,6 @@ Please download it directly from the original source before running the sentimen
 
 The models were evaluated using:
 
-- MAE
-- RMSE
 - MAPE
 - Directional Accuracy
 - Prediction Interval Coverage
