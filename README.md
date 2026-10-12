@@ -160,7 +160,7 @@ cd financial-time-series-forecasting
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-python run_pipeline.py --skip-sentiment   # price-only pipeline (no API keys needed)
+python run_pipeline.py --skip-sentiment   # price-only pipeline (no sentiment step)
 python run_pipeline.py                    # full pipeline; needs ALPHAVANTAGE_API_KEY in .env
                                           # and the Financial PhraseBank dataset (see Dataset)
 ```
