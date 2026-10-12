@@ -1,4 +1,4 @@
-# Hybrid Deep Learning Framework for Stock Price Forecasting using Quantile Regression and Financial Sentiment Analysis
+# A Hybrid Deep Learning Framework for Stock Price Prediction Integrating Quantile Regression and Sentiment Analysis
 
 > Master's Thesis Project – MSc Artificial Intelligence  
 > IU International University of Applied Sciences, Berlin
@@ -213,7 +213,7 @@ MIT License
 Berlin, Germany
 
 LinkedIn:
-https://linkedin.com/in/sara-hosseini-a22353267
+https://www.linkedin.com/in/sara-hosseini-analyst/
 
 GitHub:
 https://github.com/Sara-Hosseini
