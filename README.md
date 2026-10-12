@@ -15,6 +15,15 @@ The project evaluates multiple deep learning and machine learning models using a
 - Microsoft (MSFT)
 - NVIDIA (NVDA)
 
+## Key Results
+
+Evaluated with five-fold walk-forward validation (test years 2021 to 2025) on AAPL, MSFT and NVDA.
+
+- Prediction intervals were close to the nominal 80% target at 1 day (78.8% to 83.0% coverage), versus 70.1% for the XGBoost baseline.
+- At 10 days, coverage ranged from 70.9% (NVDA) to 80.1% (AAPL), versus 65.1% for the baseline.
+- LoRA fine-tuning raised the sentiment model's macro F1 from 0.31 (zero-shot) to 0.80 on a held-out Financial PhraseBank subset.
+- Sentiment did not consistently reduce price error (comparable to a naive random-walk baseline), but directional accuracy for AAPL at 10 days reached 72.2% on news-event days (58.2% overall).
+
 ---
 
 ## Research Objectives
@@ -168,7 +177,7 @@ notebooks/
 - Quantile prediction intervals
 - Financial sentiment analysis
 - Event-aware feature engineering
-- Walk-forward backtesting
+- Walk-forward validation
 - Distribution shift analysis
 - Statistical hypothesis testing
 - Reproducible research pipeline
