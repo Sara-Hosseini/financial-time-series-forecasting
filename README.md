@@ -1,19 +1,20 @@
 # A Hybrid Deep Learning Framework for Stock Price Prediction Integrating Quantile Regression and Sentiment Analysis
 
-> Master's Thesis Project – MSc Artificial Intelligence  
-> IU International University of Applied Sciences, Berlin
+> M.Sc. Artificial Intelligence thesis (grade 1.8) · IU International University of Applied Sciences, Berlin · Sara Hosseini
 
-## Overview
+**In one sentence:** forecasting a realistic *range* for future prices (10th, 50th and 90th percentiles) instead of a single number, testing whether financial news sentiment helps, and evaluating everything honestly against simple baselines.
 
-This project presents a hybrid deep learning framework for multi-horizon stock price forecasting by combining historical market data with financial news sentiment.
+| | |
+|---|---|
+| **Question** | Can a model give well-calibrated prediction intervals, and does news sentiment improve them? |
+| **Data** | Daily prices for AAPL, MSFT and NVDA (Jan 2015 to Apr 2026, 2,844 trading days each) and about 1,200 to 1,350 news articles per stock (Alpha Vantage, GDELT, Yahoo Finance News) |
+| **Methods** | Quantile LSTM · FinBERT fine-tuned with LoRA · XGBoost quantile baseline · naive random-walk baseline · 5-fold walk-forward validation · paired t-tests and Diebold-Mariano tests |
+| **Tools** | Python, pandas, NumPy, SciPy, scikit-learn, XGBoost, TensorFlow/Keras, PyTorch, Hugging Face Transformers, PEFT |
+| **Detailed results** | [sara-hosseini.github.io/project-thesis.html](https://sara-hosseini.github.io/project-thesis.html) |
 
-Unlike traditional point forecasting approaches, the framework predicts **probabilistic price intervals (Q10, Q50, Q90)** to quantify forecast uncertainty while investigating whether financial sentiment improves predictive performance across different forecast horizons.
+### Why this matters beyond finance
 
-The project evaluates multiple deep learning and machine learning models using a rigorous walk-forward evaluation methodology on three large-cap US stocks:
-
-- Apple (AAPL)
-- Microsoft (MSFT)
-- NVIDIA (NVDA)
+The same approach applies to demand, revenue or capacity planning: decision-makers get a low/expected/high range, every model has to beat a simple baseline, and walk-forward validation shows how the forecast would really have performed at the time.
 
 ## Key Results
 
@@ -133,6 +134,38 @@ The models were evaluated using:
 - Interval Width
 - Paired t-test
 - Diebold-Mariano Test
+
+---
+
+## Where to Look in the Code
+
+| What | File |
+|---|---|
+| Quantile LSTM (pinball loss, Q10/Q50/Q90) | [`src/models/lstm_quantile.py`](src/models/lstm_quantile.py) |
+| Walk-forward evaluation | [`src/models/walk_forward_eval.py`](src/models/walk_forward_eval.py) |
+| XGBoost quantile baseline | [`src/models/xgboost_baseline.py`](src/models/xgboost_baseline.py) |
+| Naive random-walk baseline | [`naive_baseline.py`](naive_baseline.py) |
+| FinBERT + LoRA fine-tuning | [`src/sentiment/train_finbert_phrasebank.py`](src/sentiment/train_finbert_phrasebank.py) |
+| Paired t-test and Diebold-Mariano test | [`src/evaluation/statistical_tests.py`](src/evaluation/statistical_tests.py) |
+| Event-day subgroup analysis | [`src/evaluation/subgroup_evaluation.py`](src/evaluation/subgroup_evaluation.py) |
+| Exploratory analysis | [`notebooks/02_eda.ipynb`](notebooks/02_eda.ipynb), [`notebooks/03_price_sentiment_impact.ipynb`](notebooks/03_price_sentiment_impact.ipynb) |
+
+---
+
+## How to Run
+
+```bash
+git clone https://github.com/Sara-Hosseini/financial-time-series-forecasting.git
+cd financial-time-series-forecasting
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+python run_pipeline.py --skip-sentiment   # price-only pipeline (no API keys needed)
+python run_pipeline.py                    # full pipeline; needs ALPHAVANTAGE_API_KEY in .env
+                                          # and the Financial PhraseBank dataset (see Dataset)
+```
+
+Raw data is downloaded by the pipeline and is not committed to the repository.
 
 ---
 
